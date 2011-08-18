@@ -17,8 +17,10 @@ Currently supported devices by manufacturers:
  - Datecs (http://www.datecs.bg)
  - Eltrade (http://www.eltrade.com)
  - Tremol (http://www.tremol.bg)
+ - Daisy (http://www.daisytech.com/)
 
 UcsFP is tested on the following models:
  - FP550, FP3530 (in production)
  - Eltrade A300 (in production)
  - Zeka ZM03 (development only)
+ - Daisy Micro (development only)
