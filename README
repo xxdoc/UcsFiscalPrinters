@@ -1,1 +1,24 @@
-This is a test
+Unicontsoft Fiscal Printers Component
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+UcsFP is a COM component that can be used to configure and operate 
+fiscal printers that are popular in Bulgaria. The component supports
+printing fiscal and non-fiscal receipts, printing daily reports as well
+as configuring device settings (usually done by registered companies).
+
+UcsFP implements lowest-level protocols that are supported by the fiscal
+printers, usually sending native commands directly to the COM port the
+device is attached to.
+
+UcsFP supports remoting through COM+ so a single fiscal device can be
+used by multiple workstations.
+
+Currently supported devices by manufacturers:
+ - Datecs (http://www.datecs.bg)
+ - Eltrade (http://www.eltrade.com)
+ - Tremol (http://www.tremol.bg)
+
+UcsFP is tested on the following models:
+ - FP550, FP3530 (in production)
+ - Eltrade A300 (in production)
+ - Zeka ZM03 (development only)
