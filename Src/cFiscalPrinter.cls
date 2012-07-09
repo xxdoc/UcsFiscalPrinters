@@ -12,15 +12,22 @@ Attribute VB_Creatable = True
 Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = True
 '=========================================================================
-' $Header: /UcsFiscalPrinter/Src/cFiscalPrinter.cls 13    9.08.11 23:25 Wqw $
+' $Header: /UcsFiscalPrinter/Src/cFiscalPrinter.cls 15    23.03.12 15:30 Wqw $
 '
 '   Unicontsoft Fiscal Printers Project
-'   Copyright (c) 2008-2011 Unicontsoft
+'   Copyright (c) 2008-2012 Unicontsoft
 '
 '   Uprawlenie na fiscalni ustrojstwa prez IDeviceProtocol protocoli
 '
 ' $Log: /UcsFiscalPrinter/Src/cFiscalPrinter.cls $
 ' 
+' 15    23.03.12 15:30 Wqw
+' ADD: GetTotalsByVatGroups. REF: PrintReceipt checks if receipt already
+' printed
+'
+' 14    8.12.11 15:49 Wqw
+' REF: multi-speed check in EnumPorts
+'
 ' 13    9.08.11 23:25 Wqw
 ' REF: supports zeka protocol
 '
@@ -99,6 +106,8 @@ Public Enum UcsFiscalParamIndexesEnum
     ucsFscPixCashDeskNo
     ucsFscPixLastReceipt
     ucsFscPixFiscalPayment
+    ucsFscPixPrevReceipt
+    ucsFscPixPrevTurnover
 End Enum
 
 '=========================================================================
@@ -164,28 +173,39 @@ Public Function EnumPorts() As Variant
     Dim vRet            As Variant
     Dim lCount          As Long
     Dim vPort           As Variant
+    Dim vSpeed          As Variant
     Dim vElem           As Variant
-    Dim pDevice         As IDeviceProtocol
+    Dim oFP             As IDeviceProtocol
     Dim sProtocol       As String
     Dim sModel          As String
     
     On Error Resume Next
-    vDevices = Array(New cZekaProtocol, New cICLProtocol, New cEltradeProtocol)
+    vDevices = Array( _
+        Array(New cZekaProtocol, 9600), _
+        Array(New cICLProtocol, 9600, 38400), _
+        Array(New cEltradeProtocol, 9600))
     ReDim vRet(0 To 255) As Variant
     For Each vPort In EnumSerialPorts
         sProtocol = vbNullString
         sModel = vbNullString
         For Each vElem In vDevices
-            Set pDevice = vElem
-            pDevice.Init C_Str(vPort), 500, 0
-            sProtocol = pDevice.GetDeviceProtocol()
+            Set oFP = vElem(0)
+            For Each vSpeed In vElem
+                If Not IsObject(vSpeed) Then
+                    oFP.Init vPort & "," & vSpeed, 250, 0
+                    sProtocol = oFP.GetDeviceProtocol()
+                    If LenB(sProtocol) <> 0 Then
+                        sModel = oFP.GetDeviceModel()
+                        Exit For
+                    End If
+                    oFP.Disconnect
+                End If
+            Next
             If LenB(sProtocol) <> 0 Then
-                sModel = pDevice.GetDeviceModel()
                 Exit For
             End If
-            pDevice.Disconnect
         Next
-        vRet(lCount) = Array(vPort, 9600, sProtocol, sModel)
+        vRet(lCount) = Array(vPort, vSpeed, sProtocol, sModel)
         lCount = lCount + 1
     Next
     If lCount > 0 Then
@@ -262,7 +282,7 @@ Public Function GetHeaderFooter( _
         RetVal(17) = oFP.GetCharsPerLine()
     End If
     If LenB(At(vInput, 18, "1")) <> 0 Then
-        RetVal(18) = oFP.GetDefaultPassword()
+        RetVal(18) = oFP.GetDefaultPassword(At(OperatorData, 0))
     End If
     '--- success
     GetHeaderFooter = True
@@ -291,9 +311,31 @@ Public Function PrintReceipt( _
     Dim oFP             As IDeviceProtocol
     Dim vElem           As Variant
     Dim lIdx            As Long
-            
+    Dim sPrevReceipt    As String
+    Dim dblTurnover     As Double
+    
     On Error GoTo EH
     Set oFP = pvInit(DeviceString)
+    If Not oFP.CancelReceipt() Then
+        If LenB(oFP.GetLastError()) <> 0 Then
+            Err.Raise vbObjectError, , oFP.GetLastError()
+        End If
+    End If
+    sPrevReceipt = At(OperatorData, ucsFscPixPrevReceipt, vbNullString)
+    If LenB(sPrevReceipt) <> 0 Then
+        ValueAt(OperatorData, ucsFscPixPrevReceipt) = oFP.GetLastReceiptNumber()
+        '--- check if receipt already printed
+        If LenB(Trim$(sPrevReceipt)) <> 0 And sPrevReceipt <> At(OperatorData, ucsFscPixPrevReceipt) Then
+            For Each vElem In oFP.GetTotalsByVatGroups()
+                dblTurnover = dblTurnover + C_Dbl(vElem)
+            Next
+            If dblTurnover <> C_Dbl(At(OperatorData, ucsFscPixPrevTurnover, 0)) Or dblTurnover = 0 Then
+                ValueAt(OperatorData, ucsFscPixLastReceipt) = At(OperatorData, ucsFscPixPrevReceipt)
+                ValueAt(OperatorData, ucsFscPixPrevReceipt) = Empty
+                GoTo QH
+            End If
+        End If
+    End If
     If IsArray(Rows) Then
         oFP.StartReceipt ReceiptType, At(OperatorData, ucsFscPixOperatorCode), _
             At(OperatorData, ucsFscPixOperatorName, STR_CASHIER), _
@@ -370,6 +412,9 @@ EH:
     If Not oFP Is Nothing Then
         DebugLog FUNC_NAME, "oFP.GetLastError=" & oFP.GetLastError()
         CommandLog = oFP.GetCommandLog()
+        If InStr(LastError, Split(STR_DATECS_FP_INTERNAL, "|")(16)) Then ' 16 = ucsErrInvalidOperatorPassword
+            ValueAt(OperatorData, ucsFscPixOperatorPass) = Empty
+        End If
     End If
 End Function
 
@@ -490,6 +535,31 @@ EH:
     End If
 End Function
 
+Public Function GetTotalsByVatGroups( _
+            DeviceString As String, _
+            vTotals As Variant, _
+            Optional LastError As String, _
+            Optional CommandLog As String) As Boolean
+    Const FUNC_NAME     As String = "GetTotalsByVatGroups"
+    Dim oFP             As IDeviceProtocol
+    
+    On Error GoTo EH
+    Set oFP = pvInit(DeviceString)
+    vTotals = oFP.GetTotalsByVatGroups()
+    '--- success (or failure)
+    GetTotalsByVatGroups = True
+QH:
+    CommandLog = oFP.GetCommandLog()
+    Exit Function
+EH:
+    LastError = Err.Description
+    DebugLog FUNC_NAME, "LastError=" & LastError
+    If Not oFP Is Nothing Then
+        DebugLog FUNC_NAME, "oFP.GetLastError=" & oFP.GetLastError()
+        CommandLog = oFP.GetCommandLog()
+    End If
+End Function
+
 '= private ===============================================================
 
 Private Function pvInit(DeviceString As String) As IDeviceProtocol
@@ -553,3 +623,4 @@ Private Function pvGetVatGroup(sVatGroup As String) As Long
         pvGetVatGroup = 2
     End If
 End Function
+
