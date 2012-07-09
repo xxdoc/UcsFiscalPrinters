@@ -12,14 +12,26 @@ Attribute VB_Creatable = True
 Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = True
 '=========================================================================
-' $Header: /UcsFiscalPrinter/Src/cZekaProtocol.cls 1     9.08.11 23:26 Wqw $
+' $Header: /UcsFiscalPrinter/Src/cZekaProtocol.cls 5     23.03.12 15:26 Wqw $
 '
 '   Unicontsoft Fiscal Printers Project
-'   Copyright (c) 2008-2011 Unicontsoft
+'   Copyright (c) 2008-2012 Unicontsoft
 '
 '   Protocol for Zeka cash registers & FP
 '
 ' $Log: /UcsFiscalPrinter/Src/cZekaProtocol.cls $
+' 
+' 5     23.03.12 15:26 Wqw
+' ADD: GetTotalsByVatGroups. REF: cancel receipt before printing reports
+'
+' 4     8.12.11 15:48 Wqw
+' REF: params na GetDefaultPassword
+'
+' 3     11.11.11 20:27 Wqw
+' REF: zero quantity is handled separately in PLU print
+'
+' 2     13.10.11 10:54 Wqw
+' REF: Init params
 '
 ' 1     9.08.11 23:26 Wqw
 ' Initial implementation
@@ -86,6 +98,7 @@ Public Enum UcsZekaCommandsEnum
     ucsZekCmdInfoHeaderFooter = &H69
     ucsZekCmdInfoOperator = &H6A
     ucsZekCmdInfoItem = &H6B
+    ucsZekCmdInfoTotalsByVatGroups = &H6D
     ucsZekCmdInfoRegisters = &H6E
     ucsZekCmdInfoInvoiceNo = &H70
     ucsZekCmdInfoLastReceipt = &H71
@@ -551,9 +564,11 @@ Public Function WaitDevice() As Boolean
     
     On Error GoTo EH
     Do
-        If pvSendCommand(m_hComm, m_lTimeout, ucsZekCmdIsOnline, sError:=sError) <> Chr$(ucsZekCmdIsOnline) Then
-            m_sLastError = sError
-            Exit Function
+        If pvSendCommand(m_hComm, pvPingTimeout, ucsZekCmdIsOnline, sError:=sError) <> Chr$(ucsZekCmdIsOnline) Then
+            If pvSendCommand(m_hComm, m_lTimeout, ucsZekCmdIsOnline, sError:=sError) <> Chr$(ucsZekCmdIsOnline) Then
+                m_sLastError = sError
+                Exit Function
+            End If
         End If
         If pvSendCommand(m_hComm, pvPingTimeout, ucsZekCmdIsReady) = Chr$(ucsZekCmdIsReady) Then
             WaitDevice = True
@@ -836,12 +851,17 @@ Public Function EndReceipt() As Boolean
                     End If
                 Next
                 sData = Pad(At(vSplit, UBound(vSplit)), 36)
-                sData = sData & ";" & Chr$(191 + .PluVatGroup) & ";" & pvSafeFormat(.PluPrice, "0.00")
-                If .PluQuantity <> 1 Then
-                    sData = sData & "*" & pvSafeFormat(.PluQuantity, "0.000")
-                End If
-                If .DiscType = ucsFscDstPlu And .PluPrice >= 0 Then
-                    sData = sData & "," & pvSafeFormat(.DiscValue, "0.00")
+                sData = sData & ";" & Chr$(191 + .PluVatGroup) & ";"
+                If .PluQuantity <> 0 Then
+                    sData = sData & pvSafeFormat(.PluPrice, "0.00")
+                    If .PluQuantity <> 1 Then
+                        sData = sData & "*" & pvSafeFormat(.PluQuantity, "0.000")
+                    End If
+                    If .DiscType = ucsFscDstPlu And .PluPrice >= 0 Then
+                        sData = sData & "," & pvSafeFormat(.DiscValue, "0.00")
+                    End If
+                Else
+                    sData = sData & "0.00"
                 End If
                 SendCommand ucsZekCmdFiscalSell, sData
             Case ucsFscRetNonfiscal, ucsFscRetInvoiceNonfiscal
@@ -906,7 +926,7 @@ Public Function EndReceipt() As Boolean
             Select Case .PrintRowType
             Case ucsFscRetFiscal, ucsFscRetInvoiceFiscal
                 pvPrintLine vSplit
-            Case Else ' ucsFscRetNonfiscal, ucsFscRetInvoiceNonFiscal
+            Case Else ' ucsFscRetNonfiscal, ucsFscRetInvoiceNonfiscal
                 If uCtx.PmtPrinted And Not uCtx.ChangePrinted Then
                     dblTotal = Round(SumArray(uCtx.GrpTotal) - uCtx.Paid, 2)
                     If dblTotal > 0 Then
@@ -1058,6 +1078,9 @@ Public Function RunXReport(ByVal ReportType As UcsFiscalReportsTypeEnum) As Bool
     Const FUNC_NAME     As String = "RunXReport"
     Dim eCmd            As UcsZekaCommandsEnum
     
+    If Not CancelReceipt() Then
+        Err.Raise vbObjectError, , pvInternal(ucsErrCannotCancelReceipt)
+    End If
     On Error GoTo EH
     Select Case ReportType
     Case ucsFscRstDaily
@@ -1083,6 +1106,9 @@ Public Function RunZReport(ByVal ReportType As UcsFiscalReportsTypeEnum) As Bool
     Const FUNC_NAME     As String = "RunZReport"
     Dim eCmd            As UcsZekaCommandsEnum
     
+    If Not CancelReceipt() Then
+        Err.Raise vbObjectError, , pvInternal(ucsErrCannotCancelReceipt)
+    End If
     On Error GoTo EH
     Select Case ReportType
     Case ucsFscRstDaily
@@ -1108,6 +1134,9 @@ Public Function RunPeriodReport(ByVal ReportType As UcsFiscalReportsTypeEnum, By
     Const FUNC_NAME     As String = "RunPeriodReport"
     Dim eCmd            As UcsZekaCommandsEnum
     
+    If Not CancelReceipt() Then
+        Err.Raise vbObjectError, , pvInternal(ucsErrCannotCancelReceipt)
+    End If
     On Error GoTo EH
     Select Case ReportType
     Case ucsFscRstPeriodShort
@@ -1286,6 +1315,32 @@ EH:
     RaiseError FUNC_NAME
 End Function
 
+Private Function GetTotalsByVatGroups() As Variant
+    Const FUNC_NAME     As String = "GetTotalsByVatGroups"
+    Dim vSplit          As Variant
+    Dim vRetVal         As Variant
+    Dim lIdx            As Long
+    
+    On Error GoTo EH
+    vSplit = Split(SendCommand(ucsZekCmdInfoTotalsByVatGroups), ";")
+    If UBound(vSplit) > 0 Then
+        ReDim vRetVal(0 To UBound(vSplit) - 1) As Double
+        For lIdx = 0 To UBound(vRetVal)
+            If InStr(vSplit(lIdx), ".") > 0 Then
+                vRetVal(lIdx) = C_Dbl(Replace(vSplit(lIdx), ".", g_sDecimalSeparator))
+            Else
+                vRetVal(lIdx) = C_Dbl(vSplit(lIdx)) / 100#
+            End If
+        Next
+        GetTotalsByVatGroups = vRetVal
+    Else
+        GetTotalsByVatGroups = EmptyDoubleArray
+    End If
+    Exit Function
+EH:
+    RaiseError FUNC_NAME
+End Function
+
 '= private ===============================================================
 
 Private Function pvOpenPort(sDevice As String, Optional sError As String) As Long
@@ -1350,7 +1405,7 @@ Private Function pvSendCommand( _
     Dim lActual         As Long
     
     On Error GoTo EH
-    DebugLog FUNC_NAME, "eCmd=" & eCmd & ", sData=" & sData
+    DebugLog FUNC_NAME, "eCmd=0x" & Hex(eCmd) & ", sData=" & sData
     uOver.hEvent = CreateEvent(0, 1, 0, 0)
 RetrySend:
     '--- prepare command
@@ -1381,7 +1436,7 @@ RetrySend:
     End If
     lResult = WaitForMultipleObjects(1, uOver.hEvent, 0, lTimeout)
     If lResult <> WAIT_OBJECT_0 Then
-        DebugLog FUNC_NAME, "CancelIo after WriteFile, lResult=" & lResult
+        DebugLog FUNC_NAME, "CancelIo after WriteFile, lResult=" & lResult & ", lTimeout=" & lTimeout
         If lResult = WAIT_TIMEOUT Then
             sError = pvInternal(ucsErrTimeoutWaitingForResponse)
         End If
@@ -1426,7 +1481,7 @@ InLoop:
             End If
         End If
         If lResult <> WAIT_OBJECT_0 Then
-            DebugLog FUNC_NAME, "CancelIo after ReadFile, lResult=" & lResult
+            DebugLog FUNC_NAME, "CancelIo after ReadFile, lResult=" & lResult & ", lTimeout=" & lTimeout
             If lResult = WAIT_TIMEOUT Then
                 sError = pvInternal(ucsErrTimeoutWaitingForResponse)
             End If
@@ -1832,6 +1887,10 @@ Private Function IDeviceProtocol_AddPLU(Name As String, Price As Double, Quantit
     IDeviceProtocol_AddPLU = AddPLU(Name, Price, Quantity, VatGroup)
 End Function
 
+Private Function IDeviceProtocol_CancelReceipt() As Boolean
+    IDeviceProtocol_CancelReceipt = CancelReceipt()
+End Function
+
 Private Function IDeviceProtocol_Connect() As Boolean
     IDeviceProtocol_Connect = Connect()
 End Function
@@ -1860,7 +1919,7 @@ Private Function IDeviceProtocol_GetCommandLog() As String
     IDeviceProtocol_GetCommandLog = m_sCommandLog
 End Function
 
-Private Function IDeviceProtocol_GetDefaultPassword() As String
+Private Function IDeviceProtocol_GetDefaultPassword(OperatorCode As String) As String
     IDeviceProtocol_GetDefaultPassword = DEF_PASSWORD
 End Function
 
@@ -1914,6 +1973,10 @@ End Function
 
 Private Function IDeviceProtocol_GetTaxNumber() As String
     IDeviceProtocol_GetTaxNumber = GetTaxNumber()
+End Function
+
+Private Function IDeviceProtocol_GetTotalsByVatGroups() As Variant
+    IDeviceProtocol_GetTotalsByVatGroups = GetTotalsByVatGroups()
 End Function
 
 Private Function IDeviceProtocol_Init(Device As String, Optional ByVal Timeout As Long, Optional ByVal CashDeskNo As Long) As Boolean
