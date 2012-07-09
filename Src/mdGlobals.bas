@@ -1,14 +1,20 @@
 Attribute VB_Name = "mdGlobals"
 '=========================================================================
-' $Header: /UcsFiscalPrinter/Src/mdGlobals.bas 13    9.08.11 23:25 Wqw $
+' $Header: /UcsFiscalPrinter/Src/mdGlobals.bas 15    23.03.12 15:25 Wqw $
 '
 '   Unicontsoft Fiscal Printers Project
-'   Copyright (c) 2008-2011 Unicontsoft
+'   Copyright (c) 2008-2012 Unicontsoft
 '
 '   Globalni funktsii, constanti i promenliwi
 '
 ' $Log: /UcsFiscalPrinter/Src/mdGlobals.bas $
-' 
+'
+' 15    23.03.12 15:25 Wqw
+' ADD: EmptyDoubleArray. REF: err handling
+'
+' 14    8.12.11 15:47 Wqw
+' ADD: Property Let ValueAt
+'
 ' 13    9.08.11 23:25 Wqw
 ' ADD: Sub RegWriteValue, OpenSaveDialog, ConvertToBW, GdipLoadImage,
 ' GdipReleaseImage, Pad
@@ -132,6 +138,7 @@ Private Declare Function GdipGetImageDimension Lib "gdiplus" (ByVal Image As Lon
 Private Declare Function GdipCreateSolidFill Lib "gdiplus" (ByVal Color As Long, ByRef Brush As Long) As Long
 Private Declare Function GdipFillRectangleI Lib "gdiplus" (ByVal Graphics As Long, ByVal Brush As Long, ByVal X As Long, ByVal Y As Long, ByVal Width As Long, ByVal Height As Long) As Long
 Private Declare Function GdipDeleteBrush Lib "gdiplus" (ByVal Brush As Long) As Long
+Private Declare Function CreateEmptyDoubleArray Lib "oleaut32" Alias "SafeArrayCreateVector" (Optional ByVal vt As VbVarType = vbDouble, Optional ByVal lLow As Long = 0, Optional ByVal lCount As Long = 0) As Double()
 
 Private Type OPENFILENAME
     lStructSize         As Long     ' size of type/structure
@@ -243,9 +250,13 @@ Public g_hGdip                  As Long
 ' Error handling
 '=========================================================================
 
-Private Sub PrintError(sFunc As String)
+Private Sub PrintError(sFunc As String, Optional ByVal bUnattended As Boolean)
     Debug.Print MODULE_NAME & "." & sFunc & ": " & Err.Description
-    OutputDebugLog MODULE_NAME, sFunc & "(" & Erl & ")", "Run-time error: " & Err.Description
+    If bUnattended Then
+        OutputDebugLog MODULE_NAME, sFunc & "(" & Erl & ")", "Run-time error: " & Err.Description
+    Else
+        MsgBox MODULE_NAME & "." & sFunc & "(" & Erl & ")" & ": " & Err.Description, vbCritical
+    End If
 End Sub
 
 '=========================================================================
@@ -262,6 +273,12 @@ Public Function At(vData As Variant, ByVal lIdx As Long, Optional sDefault As St
     At = C_Str(vData(lIdx))
     On Error GoTo 0
 End Function
+
+Public Property Let ValueAt(vData As Variant, ByVal lIdx As Long, vValue As Variant)
+    On Error Resume Next
+    vData(lIdx) = vValue
+    On Error GoTo 0
+End Property
 
 Public Function C_Lng(v As Variant) As Long
     On Error Resume Next
@@ -325,20 +342,14 @@ Public Function GetApiErr(ByVal lLastDllError As Long) As String
 End Function
 
 Public Function IsNT() As Boolean
-    Const FUNC_NAME     As String = "IsNT"
     Dim udtVer          As OSVERSIONINFO
     
-    On Error GoTo EH
     udtVer.dwOSVersionInfoSize = Len(udtVer)
     If GetVersionEx(udtVer) Then
         If udtVer.dwPlatformID = VER_PLATFORM_WIN32_NT Then
             IsNT = True
         End If
     End If
-    Exit Function
-EH:
-    PrintError FUNC_NAME
-    Resume Next
 End Function
 
 Public Property Get OsVersion() As Long
@@ -400,7 +411,7 @@ Public Function EnumSerialPorts() As Variant
     End If
     Exit Function
 EH:
-    PrintError FUNC_NAME
+    PrintError FUNC_NAME, True
     Resume Next
 End Function
 
@@ -598,7 +609,9 @@ Public Function AlignText( _
         sRight = Right$(sRight, lWidth)
     End If
     AlignText = sLeft & Space$(lWidth - Len(sLeft))
-    Mid$(AlignText, lWidth - Len(sRight) + 1, Len(sRight)) = sRight
+    If LenB(sRight) <> 0 Then
+        Mid$(AlignText, lWidth - Len(sRight) + 1, Len(sRight)) = sRight
+    End If
 End Function
 
 Public Function CenterText(ByVal sText As String, ByVal lWidth As Long) As String
@@ -615,17 +628,11 @@ Public Function SumArray(vArray As Variant) As Double
 End Function
 
 Public Function IsComCtl6Loaded() As Boolean
-    Const FUNC_NAME     As String = "IsComCtl6Loaded"
     Dim uVer            As DLLVERSIONINFO
     
-    On Error GoTo EH
     uVer.cbSize = Len(uVer)
     Call DllGetVersion(uVer)
     IsComCtl6Loaded = (uVer.dwMajor >= 6)
-    Exit Function
-EH:
-    PrintError FUNC_NAME
-    Resume Next
 End Function
 
 Public Function FixThemeSupport(oControls As Object) As Boolean
@@ -707,7 +714,6 @@ End Function
 
 Public Sub RegWriteValue(ByVal hRoot As UcsRegistryRootsEnum, sKey As String, sValue As String, vValue As Variant)
     Dim hKey            As Long
-    Dim lType           As Long
     Dim lTemp           As Long
     Dim sTemp           As String
     
@@ -772,6 +778,7 @@ Public Function ConvertToBW( _
             ByVal lHeight As Long, _
             ByVal lThreshold As Long, _
             ByVal bCenter As Boolean) As Byte()
+    Const FUNC_NAME     As String = "ConvertToBW"
     Dim uBIH            As BITMAPINFOHEADER
     Dim hDC             As Long
     Dim hDIB            As Long
@@ -873,7 +880,7 @@ Public Function ConvertToBW( _
     ConvertToBW = baRetVal
     Exit Function
 EH:
-    MsgBox Error, vbCritical
+    PrintError FUNC_NAME
     Resume Next
 End Function
 
@@ -900,4 +907,8 @@ Public Function Pad(ByVal sText As String, ByVal lSize As Long, Optional ByVal s
     Else
         Pad = Right$(String(-lSize, sFill) & sText, -lSize)
     End If
+End Function
+
+Public Function EmptyDoubleArray() As Double()
+    EmptyDoubleArray = CreateEmptyDoubleArray()
 End Function
