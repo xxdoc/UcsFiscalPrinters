@@ -15,14 +15,15 @@ used by multiple workstations.
 
 Currently supported devices by manufacturers:
  - Datecs (http://www.datecs.bg)
- - Eltrade (http://www.eltrade.com)
  - Tremol (http://www.tremol.bg)
+ - Eltrade (http://www.eltrade.com)
  - Daisy (http://www.daisytech.com/)
 
 UcsFP is tested on the following models:
- - FP550, FP3530 (in production)
- - Eltrade A300 (in production)
- - Zeka ZM03 (development only)
+ - FP-550KL, DP-55KL (in production)
+ - FP-550-05 DV (legacy, in production)
+ - Tremol ZM-KL (in production)
+ - Eltrade A300 (legacy, development only)
  - Daisy Micro (development only)
 
 Enjoy!
