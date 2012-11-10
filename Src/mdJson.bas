@@ -5,7 +5,7 @@ Attribute VB_Name = "mdJson"
 '   Unicontsoft Fiscal Printers Project
 '   Copyright (c) 2008-2012 Unicontsoft
 '
-'   Protocol for Datecs & Daisy fiscal printers (ICL protocol)
+'   JSON parsing and dumping functions
 '
 ' $Log: /UcsFiscalPrinter/Src/mdJson.bas $
 ' 
