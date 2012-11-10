@@ -12,7 +12,7 @@ Attribute VB_Creatable = True
 Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = True
 '=========================================================================
-' $Header: /UcsFiscalPrinter/Src/cEltradeProtocol.cls 21    23.03.12 15:28 Wqw $
+' $Header: /UcsFiscalPrinter/Src/cEltradeProtocol.cls 25    19.10.12 0:36 Wqw $
 '
 '   Unicontsoft Fiscal Printers Project
 '   Copyright (c) 2008-2012 Unicontsoft
@@ -21,6 +21,18 @@ Attribute VB_Exposed = True
 '
 ' $Log: /UcsFiscalPrinter/Src/cEltradeProtocol.cls $
 ' 
+' 25    19.10.12 0:36 Wqw
+' REF: wrong public scope of private functions
+'
+' 24    9.10.12 15:20 Wqw
+' REF: parms of IDeviceProtocol_CashDebitCredit
+'
+' 23    5.10.12 14:20 Wqw
+' ADD: Function CashDebitCredit
+'
+' 22    6.08.12 18:39 Wqw
+' REF: impl AutodetectDevices
+'
 ' 21    23.03.12 15:28 Wqw
 ' ADD: GetTotalsByVatGroups. REF: cancel receipt before printing reports
 '
@@ -459,35 +471,36 @@ End Property
 ' Methods
 '=========================================================================
 
-Public Function EnumPorts() As Variant
-    Const FUNC_NAME     As String = "EnumPorts"
-    Dim hComm           As Long
+Public Function AutodetectDevices(vPorts As Variant) As Variant
+    Const FUNC_NAME     As String = "AutodetectDevices"
+    Const STR_SPEEDS    As String = "9600" ' |38400|115200
+    Dim vRetVal         As Variant
+    Dim vSpeed          As Variant
+    Dim lIdx            As Long
     Dim sError          As String
-    Dim vPort           As Variant
-    Dim vRet            As Variant
-    Dim lCount          As Long
-    Dim eCmd            As UcsEltradeCommandsEnum
+    Dim hComm           As Long
+    Dim sProtocol       As String
+    Dim sModel          As String
     
     On Error GoTo EH
-    ReDim vRet(0 To 255) As Variant
-    For Each vPort In EnumSerialPorts
-        sError = vbNullString
-        hComm = pvOpenPort(vPort & ",9600,8,N,1", sError)
-        If hComm <> INVALID_HANDLE_VALUE And LenB(sError) = 0 Then
-            pvSendCommand hComm, 500, ucsEltCmdInfoDeviceStatus, eRetCmd:=eCmd, sError:=sError
-            If eCmd = ucsEltCmdInfoDeviceStatus And LenB(sError) = 0 Then
-                vRet(lCount) = vPort
-                lCount = lCount + 1
+    vRetVal = vPorts
+    For Each vSpeed In Split(STR_SPEEDS, "|")
+        For lIdx = 0 To UBound(vPorts)
+            If LenB(At(vPorts, lIdx)) <> 0 Then
+                sError = vbNullString
+                hComm = pvOpenPort(At(vPorts, lIdx) & "," & vSpeed, sError:=sError)
+                If hComm <> INVALID_HANDLE_VALUE And LenB(sError) = 0 Then
+                    If LenB(pvSendCommand(hComm, 10, ucsEltCmdInfoStatus)) = 0 Then
+                        '--- do nothing
+                    ElseIf pvGetDeviceInfo(hComm, 100, sProtocol, sModel) Then
+                        vRetVal(lIdx) = Array(At(vPorts, lIdx), vSpeed, sProtocol, sModel)
+                    End If
+                End If
+                Call CloseHandle(hComm)
             End If
-            Call CloseHandle(hComm)
-        End If
+        Next
     Next
-    If lCount = 0 Then
-        EnumPorts = Split(vbNullString)
-    Else
-        ReDim Preserve vRet(0 To lCount - 1) As Variant
-        EnumPorts = vRet
-    End If
+    AutodetectDevices = vRetVal
     Exit Function
 EH:
     RaiseError FUNC_NAME
@@ -1513,10 +1526,7 @@ Public Function GetDeviceProtocol() As String
     Const FUNC_NAME     As String = "GetDeviceProtocol"
     
     On Error GoTo EH
-    If LenB(GetSerialNumber()) = 0 Then
-    Else
-        GetDeviceProtocol = STR_PROTOCOL_ELTRADE_ECR
-    End If
+    pvGetDeviceInfo m_hComm, m_lTimeout, GetDeviceProtocol, vbNullString
     Exit Function
 EH:
     RaiseError FUNC_NAME
@@ -1524,34 +1534,9 @@ End Function
 
 Public Function GetDeviceModel() As String
     Const FUNC_NAME     As String = "GetDeviceModel"
-    Dim sResult         As String
-    Dim sModel          As String
     
     On Error GoTo EH
-    sResult = SendCommand(ucsEltCmdInfoEcrParams)
-    Select Case pvPeek(sResult, 2)
-    Case 1
-        sModel = "A100"
-    Case 2
-        sModel = "A300"
-    Case 4
-        sModel = "A500"
-    Case 8
-        sModel = "A800"
-    Case 16
-        sModel = "A600"
-    Case Else
-        sModel = "Model 0x" & Hex(pvPeek(sResult, 2))
-    End Select
-    Select Case pvPeek(sResult, 1)
-    Case &H30, &H70, &HF0
-        sResult = "70a"
-    Case &HF4
-        sResult = "70x"
-    Case Else
-        sResult = "Unknown 0x" & Hex(pvPeek(sResult, 1))
-    End Select
-    GetDeviceModel = sModel & " (" & sResult & ")"
+    pvGetDeviceInfo m_hComm, m_lTimeout, vbNullString, GetDeviceModel
     Exit Function
 EH:
     RaiseError FUNC_NAME
@@ -2203,6 +2188,45 @@ EH:
     RaiseError FUNC_NAME
 End Sub
 
+Private Function pvGetDeviceInfo(ByVal hComm As Long, ByVal lTimeout As Long, sProtocol As String, sModel As String) As Boolean
+    Const FUNC_NAME     As String = "GetDeviceModel"
+    Dim sResult         As String
+    
+    On Error GoTo EH
+    sResult = pvSendCommand(hComm, lTimeout, ucsEltCmdInfoEcrParams)
+    If LenB(sResult) Then
+        sProtocol = STR_PROTOCOL_ELTRADE_ECR
+        Select Case pvPeek(sResult, 2)
+        Case 1
+            sModel = "A100"
+        Case 2
+            sModel = "A300"
+        Case 4
+            sModel = "A500"
+        Case 8
+            sModel = "A800"
+        Case 16
+            sModel = "A600"
+        Case Else
+            sModel = "Model 0x" & Hex(pvPeek(sResult, 2))
+        End Select
+        Select Case pvPeek(sResult, 1)
+        Case &H30, &H70, &HF0
+            sResult = "70a"
+        Case &HF4
+            sResult = "70x"
+        Case Else
+            sResult = "Unknown 0x" & Hex(pvPeek(sResult, 1))
+        End Select
+        sModel = sModel & " (" & sResult & ")"
+        '--- success
+        pvGetDeviceInfo = True
+    End If
+    Exit Function
+EH:
+    PrintError FUNC_NAME
+End Function
+
 '=========================================================================
 ' Base class events
 '=========================================================================
@@ -2239,8 +2263,16 @@ Private Function IDeviceProtocol_AddPLU(Name As String, Price As Double, Quantit
     IDeviceProtocol_AddPLU = AddPLU(0, Name, Price, Quantity, VatGroup)
 End Function
 
+Private Function IDeviceProtocol_AutodetectDevices(Ports As Variant) As Variant
+    IDeviceProtocol_AutodetectDevices = AutodetectDevices(Ports)
+End Function
+
 Private Function IDeviceProtocol_CancelReceipt() As Boolean
     IDeviceProtocol_CancelReceipt = CancelReceipt()
+End Function
+
+Private Function IDeviceProtocol_CashDebitCredit(OperatorCode As String, OperatorPassword As String, ByVal Value As Double) As Variant
+    '--- not implemented
 End Function
 
 Private Function IDeviceProtocol_Connect() As Boolean
@@ -2339,7 +2371,7 @@ Private Function IDeviceProtocol_OpenDrawer() As Boolean
     '--- not implemented
 End Function
 
-Public Function IDeviceProtocol_RunPeriodReport(ByVal ReportType As UcsFiscalReportsTypeEnum, ByVal StartDate As Date, ByVal EndDate As Date) As Boolean
+Private Function IDeviceProtocol_RunPeriodReport(ByVal ReportType As UcsFiscalReportsTypeEnum, ByVal StartDate As Date, ByVal EndDate As Date) As Boolean
     IDeviceProtocol_RunPeriodReport = RunPeriodReport(ReportType, StartDate, EndDate)
 End Function
 

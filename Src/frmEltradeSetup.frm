@@ -2,13 +2,13 @@ VERSION 5.00
 Begin VB.Form frmEltradeSetup 
    BorderStyle     =   3  'Fixed Dialog
    Caption         =   "Настройки ELTRADE протокол"
-   ClientHeight    =   6225
-   ClientLeft      =   45
-   ClientTop       =   435
+   ClientHeight    =   6228
+   ClientLeft      =   48
+   ClientTop       =   432
    ClientWidth     =   8100
    BeginProperty Font 
       Name            =   "Tahoma"
-      Size            =   8.25
+      Size            =   8.4
       Charset         =   204
       Weight          =   400
       Underline       =   0   'False
@@ -19,9 +19,84 @@ Begin VB.Form frmEltradeSetup
    LinkTopic       =   "Form2"
    MaxButton       =   0   'False
    MinButton       =   0   'False
-   ScaleHeight     =   6225
+   ScaleHeight     =   6228
    ScaleWidth      =   8100
    StartUpPosition =   3  'Windows Default
+   Begin VB.Frame fraCommands 
+      Height          =   5775
+      Index           =   13
+      Left            =   2250
+      TabIndex        =   194
+      Top             =   90
+      Width           =   5775
+      Begin VB.TextBox txtCashTotal 
+         Alignment       =   1  'Right Justify
+         BackColor       =   &H8000000F&
+         Height          =   285
+         Left            =   2070
+         Locked          =   -1  'True
+         TabIndex        =   82
+         TabStop         =   0   'False
+         Top             =   270
+         Width           =   1545
+      End
+      Begin VB.OptionButton optCashOut 
+         Caption         =   "Извеждане"
+         Height          =   285
+         Left            =   3528
+         TabIndex        =   84
+         Top             =   1620
+         Width           =   1455
+      End
+      Begin VB.CommandButton cmdSave 
+         Caption         =   "Внос/износ"
+         Height          =   375
+         Index           =   6
+         Left            =   4320
+         TabIndex        =   86
+         Top             =   5220
+         Width           =   1275
+      End
+      Begin VB.TextBox txtCashSum 
+         Alignment       =   1  'Right Justify
+         Height          =   285
+         Left            =   2070
+         TabIndex        =   85
+         Top             =   1980
+         Width           =   1545
+      End
+      Begin VB.OptionButton optCashIn 
+         Caption         =   "Въвеждане"
+         Height          =   285
+         Left            =   2070
+         TabIndex        =   83
+         Top             =   1620
+         Value           =   -1  'True
+         Width           =   1455
+      End
+      Begin VB.Label Label62 
+         AutoSize        =   -1  'True
+         BackStyle       =   0  'Transparent
+         Caption         =   "Наличност каса:"
+         Height          =   195
+         Left            =   180
+         TabIndex        =   196
+         Top             =   270
+         Width           =   1905
+         WordWrap        =   -1  'True
+      End
+      Begin VB.Label Label57 
+         AutoSize        =   -1  'True
+         BackStyle       =   0  'Transparent
+         Caption         =   "Сума:"
+         Height          =   195
+         Left            =   180
+         TabIndex        =   195
+         Top             =   1980
+         Width           =   1905
+         WordWrap        =   -1  'True
+      End
+   End
    Begin VB.Frame fraCommands 
       Height          =   5775
       Index           =   14
@@ -207,81 +282,6 @@ Begin VB.Form frmEltradeSetup
          TabIndex        =   198
          Top             =   1350
          Width           =   915
-         WordWrap        =   -1  'True
-      End
-   End
-   Begin VB.Frame fraCommands 
-      Height          =   5775
-      Index           =   13
-      Left            =   2250
-      TabIndex        =   194
-      Top             =   90
-      Width           =   5775
-      Begin VB.TextBox txtCashTotal 
-         Alignment       =   1  'Right Justify
-         BackColor       =   &H8000000F&
-         Height          =   285
-         Left            =   2070
-         Locked          =   -1  'True
-         TabIndex        =   82
-         TabStop         =   0   'False
-         Top             =   270
-         Width           =   1545
-      End
-      Begin VB.OptionButton optCashOut 
-         Caption         =   "Износ"
-         Height          =   285
-         Left            =   3150
-         TabIndex        =   84
-         Top             =   1620
-         Width           =   1455
-      End
-      Begin VB.CommandButton cmdSave 
-         Caption         =   "Внос/износ"
-         Height          =   375
-         Index           =   6
-         Left            =   4320
-         TabIndex        =   86
-         Top             =   5220
-         Width           =   1275
-      End
-      Begin VB.TextBox txtCashSum 
-         Alignment       =   1  'Right Justify
-         Height          =   285
-         Left            =   2070
-         TabIndex        =   85
-         Top             =   1980
-         Width           =   1545
-      End
-      Begin VB.OptionButton optCashIn 
-         Caption         =   "Внос"
-         Height          =   285
-         Left            =   2070
-         TabIndex        =   83
-         Top             =   1620
-         Value           =   -1  'True
-         Width           =   1455
-      End
-      Begin VB.Label Label62 
-         AutoSize        =   -1  'True
-         BackStyle       =   0  'Transparent
-         Caption         =   "Наличност каса:"
-         Height          =   195
-         Left            =   180
-         TabIndex        =   196
-         Top             =   270
-         Width           =   1905
-         WordWrap        =   -1  'True
-      End
-      Begin VB.Label Label57 
-         AutoSize        =   -1  'True
-         BackStyle       =   0  'Transparent
-         Caption         =   "Сума:"
-         Height          =   195
-         Left            =   180
-         TabIndex        =   195
-         Top             =   1980
-         Width           =   1905
          WordWrap        =   -1  'True
       End
    End
@@ -499,7 +499,7 @@ Begin VB.Form frmEltradeSetup
       Top             =   90
       Width           =   5775
       Begin VB.ListBox lstYesNoParams 
-         Height          =   4335
+         Height          =   4152
          ItemData        =   "frmEltradeSetup.frx":000C
          Left            =   180
          List            =   "frmEltradeSetup.frx":0040
@@ -2210,7 +2210,7 @@ Begin VB.Form frmEltradeSetup
          BackStyle       =   0  'Transparent
          BeginProperty Font 
             Name            =   "Tahoma"
-            Size            =   8.25
+            Size            =   8.4
             Charset         =   204
             Weight          =   700
             Underline       =   0   'False
@@ -2282,15 +2282,21 @@ Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
 '=========================================================================
-' $Header: /UcsFiscalPrinter/Src/frmEltradeSetup.frm 7     4.07.11 15:48 Wqw $
+' $Header: /UcsFiscalPrinter/Src/frmEltradeSetup.frm 9     5.10.12 14:15 Wqw $
 '
 '   Unicontsoft Fiscal Printers Project
-'   Copyright (c) 2008-2011 Unicontsoft
+'   Copyright (c) 2008-2012 Unicontsoft
 '
 '   Nastrojka na ECR po Eltrade protocol
 '
 ' $Log: /UcsFiscalPrinter/Src/frmEltradeSetup.frm $
 ' 
+' 9     5.10.12 14:15 Wqw
+' REF: cash debit/credit captions
+'
+' 8     6.08.12 18:41 Wqw
+' REF: uses EnumSerialPorts
+'
 ' 7     4.07.11 15:48 Wqw
 ' REF: err handling
 '
@@ -2337,7 +2343,7 @@ Private Const LNG_NUM_OPERS         As Long = 30
 Private Const LNG_NUM_ITEMS         As Long = 100
 Private Const PROGID_PROTOCOL       As String = LIB_NAME & ".cEltradeProtocol"
 '--- strings
-Private Const STR_COMMANDS          As String = "Връзка принтер|Настройки|    ДДС групи|    Дата и час|    Клишета|    Номера на фактури|    Типове плащания|    Оператори|    Департаменти|    Артикули|    Параметри|    Клавиши|Операции|    Внос и износ|    Печат отчети|Администрация|    Последна операция|    Журнал комуникация"
+Private Const STR_COMMANDS          As String = "Връзка принтер|Настройки|    ДДС групи|    Дата и час|    Клишета|    Номера на фактури|    Типове плащания|    Оператори|    Департаменти|    Артикули|    Параметри|    Клавиши|Операции|    Въвеждане/извеждане|    Печат отчети|Администрация|    Последна операция|    Журнал комуникация"
 Private Const STR_SPEEDS            As String = "9600|19200"
 Private Const STR_GROUPS            As String = "А|Б|В|Г"
 Private Const STR_STATUS_ENUM_PORTS As String = "Изброяване на налични принтери..."
@@ -2484,7 +2490,7 @@ Friend Function frInit(DeviceString As String, sServer As String, OwnerForm As O
     '--- login
     pvStatus = STR_STATUS_ENUM_PORTS
     cobConnectPort.Clear
-    For Each vElem In m_oFP.EnumPorts
+    For Each vElem In EnumSerialPorts
         cobConnectPort.AddItem vElem
     Next
     cobConnectPort.Text = At(vSplit, 0) ' GetSetting(CAP_MSG, "Connect", "Port", vbNullString)

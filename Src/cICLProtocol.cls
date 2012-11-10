@@ -12,7 +12,7 @@ Attribute VB_Creatable = True
 Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = True
 '=========================================================================
-' $Header: /UcsFiscalPrinter/Src/cICLProtocol.cls 37    5.05.12 18:44 Wqw $
+' $Header: /UcsFiscalPrinter/Src/cICLProtocol.cls 46    31.10.12 17:30 Wqw $
 '
 '   Unicontsoft Fiscal Printers Project
 '   Copyright (c) 2008-2012 Unicontsoft
@@ -21,6 +21,34 @@ Attribute VB_Exposed = True
 '
 ' $Log: /UcsFiscalPrinter/Src/cICLProtocol.cls $
 ' 
+' 46    31.10.12 17:30 Wqw
+' REF: x and z reports clear sums by operators
+'
+' 45    19.10.12 0:36 Wqw
+' REF: config defaults
+'
+' 44    10.10.12 14:58 Wqw
+' REF: GetTotalsByVatGroups/CashDebitCredit retval array size fixed
+'
+' 43    9.10.12 15:20 Wqw
+' REF: parms of IDeviceProtocol_CashDebitCredit
+'
+' 42    5.10.12 14:20 Wqw
+' ADD: Function CashDebitCredit
+'
+' 41    29.08.12 15:05 Wqw
+' REF: impl config values instead of constants
+'
+' 40    10.08.12 18:12 Wqw
+' REF: KLEN device check
+'
+' 39    10.08.12 18:06 Wqw
+' REF: workaround for KLEN devices that don't support custom PLUs in
+' voids and zero price in fiscal rows
+'
+' 38    6.08.12 18:39 Wqw
+' REF: impl AutodetectDevices
+'
 ' 37    5.05.12 18:44 Wqw
 ' REF: remove caret in hdr/ftr, simpler transcode
 '
@@ -346,12 +374,14 @@ Private Const STR_RECEIPT_TEXTS         As String = "CASH|CARD|CHEQUE|CREDIT|SUR
 Private Const DEF_TIMEOUT               As Long = 3000
 Private Const DEF_PASSWORD              As String = "0000"
 Private Const DEF_COMMENT_LEN           As Long = 30
-Private Const MAX_PAYMENT_LEN           As Long = 24
-Private Const MAX_RECEIPT_ROWS          As Long = 99
-Private Const MIN_DISCOUNT              As Double = -99
-Private Const MAX_DISCOUNT              As Double = 99
+Private Const DEF_MAX_RECEIPT_ROWS      As Long = 120
+Private Const DEF_MIN_DISCOUNT          As Double = -99
+Private Const DEF_MAX_DISCOUNT          As Double = 99
+Private Const DEF_MAX_PAYMENT_LEN       As Long = 24
 Private Const MIK_OFFSET                As Long = &H80
-Private Const WIN_OFFSET                As Long = &HC0
+'Private Const WIN_OFFSET                As Long = &HC0
+Private Const ucsFscDstPluAbs           As Long = ucsFscDstPlu + 100
+Private Const ucsFscDstSubtotalAbs      As Long = ucsFscDstSubtotal + 100
 
 Private m_sDevice                   As String
 Private m_hComm                     As Long
@@ -363,14 +393,12 @@ Private m_eDip                      As UcsIclDipSwitchesEnum
 Private m_eMemory                   As UcsIclFiscalMemoryEnum
 Private m_sLastError                As String
 Private m_bExceptions               As Boolean
-Private m_sLocalizedText(0 To [_ucsFscLciMax] - 1) As String
 Private m_uRow()                    As UcsRowData
 Private m_lRowCount                 As Long
 Private m_bFiscalPaymentExecuted    As Boolean
-Private m_lRowChars                 As Long
 Private m_sCommandLog               As String
-Private m_eCharset                  As UcsCharset
-Private m_eIsEcr                    As UcsTriState
+Private m_vInfoDiagnostics          As Variant
+Private m_uConfig                   As UcsConfigValues
 
 Private Enum UcsInternalErrors
     ucsErrNoDeviceInfoSet
@@ -483,6 +511,26 @@ Private Enum UcsTriState
     ucsTriTrue = -1             ' Represents True.
 End Enum
 
+Private Type UcsAutodetect
+    hComm               As Long
+    WriteOver           As OVERLAPPED
+    ReadOver            As OVERLAPPED
+    Buffer              As String
+End Type
+
+Private Type UcsConfigValues
+    RowChars            As Long
+    AbsoluteDiscount    As Boolean
+    NegativePrices      As Boolean
+    MaxReceiptRows      As Long
+    MinDiscount         As Double
+    MaxDiscount         As Double
+    MaxPaymentLen       As Long
+    Charset             As UcsCharset
+    IsEcr               As UcsTriState
+    LocalizedText(0 To [_ucsFscLciMax] - 1) As Variant
+End Type
+
 '=========================================================================
 ' Error handling
 '=========================================================================
@@ -519,11 +567,11 @@ Property Get Status(ByVal eValue As UcsIclStatusBitsEnum) As Boolean
 End Property
 
 Property Get StatusText() As String
-    StatusText = frGetFlagsText(m_eStatus, LocalizedText(ucsFscLciPrinterStatuses))
+    StatusText = frGetFlagsText(m_eStatus, m_uConfig.LocalizedText(ucsFscLciPrinterStatuses))
 End Property
 
 Property Get ErrorText() As String
-    ErrorText = frGetFlagsText(m_eStatus, LocalizedText(ucsFscLciPrinterErrors))
+    ErrorText = frGetFlagsText(m_eStatus, m_uConfig.LocalizedText(ucsFscLciPrinterErrors))
 End Property
 
 Property Get Dip(ByVal eValue As UcsIclDipSwitchesEnum) As Boolean
@@ -531,7 +579,7 @@ Property Get Dip(ByVal eValue As UcsIclDipSwitchesEnum) As Boolean
 End Property
 
 Property Get DipText() As String
-    DipText = frGetFlagsText(m_eDip, LocalizedText(ucsFscLciDipSwitchesTexts))
+    DipText = frGetFlagsText(m_eDip, m_uConfig.LocalizedText(ucsFscLciDipSwitchesTexts))
 End Property
 
 Property Get Memory(ByVal eValue As UcsIclFiscalMemoryEnum) As Boolean
@@ -539,7 +587,7 @@ Property Get Memory(ByVal eValue As UcsIclFiscalMemoryEnum) As Boolean
 End Property
 
 Property Get MemoryText() As String
-    MemoryText = frGetFlagsText(m_eMemory, LocalizedText(ucsFscLciMemoryTexts))
+    MemoryText = frGetFlagsText(m_eMemory, m_uConfig.LocalizedText(ucsFscLciMemoryTexts))
 End Property
 
 Property Get LastError() As String
@@ -563,85 +611,138 @@ Property Get IsConnected() As Boolean
 End Property
 
 Property Get LocalizedText(ByVal eIdx As UcsFiscalLocalizedIndexesEnum) As String
-    LocalizedText = m_sLocalizedText(eIdx)
-    If LenB(LocalizedText) = 0 Then
-        Select Case eIdx
-        Case ucsFscLciInternalErrors
-            LocalizedText = STR_INTERNAL
-        Case ucsFscLciPrinterStatuses
-            LocalizedText = STR_STATUSES
-        Case ucsFscLciPrinterErrors
-            LocalizedText = STR_ERRORS_ONLY
-        Case ucsFscLciDipSwitchesTexts
-            LocalizedText = STR_DIP_SWITCHES
-        Case ucsFscLciMemoryTexts
-            LocalizedText = STR_MEMORY
-        End Select
-    End If
+    LocalizedText = Join(m_uConfig.LocalizedText(eIdx), "|")
 End Property
 
 Property Let LocalizedText(ByVal eIdx As UcsFiscalLocalizedIndexesEnum, sValue As String)
-    m_sLocalizedText(eIdx) = sValue
+    m_uConfig.LocalizedText(eIdx) = Split(sValue, "|")
 End Property
 
 Property Get IsEcr() As Boolean
-    If m_eIsEcr = ucsTri_Undefined Then
-        m_eIsEcr = IIf(LenB(pvSendCommand(m_hComm, 100, ucsFpcEcrReadRow, "2;1;")) <> 0, ucsTriTrue, ucsTriFalse)
+    If m_uConfig.IsEcr = ucsTri_Undefined Then
+        m_uConfig.IsEcr = IIf(LenB(pvSendCommand(m_hComm, 100, ucsFpcEcrReadRow, "2;1;")) <> 0, ucsTriTrue, ucsTriFalse)
     End If
-    IsEcr = (m_eIsEcr = ucsTriTrue)
+    IsEcr = (m_uConfig.IsEcr = ucsTriTrue)
 End Property
 
 Private Property Get pvRowChars() As Long
     Dim bPrevExceptions As Boolean
     
-    If m_lRowChars = 0 Then
+    If m_uConfig.RowChars = 0 Then
         If Left$(GetSerialNumber(), 2) = "DY" Then '--- daisy
             bPrevExceptions = pvSetExceptions(False)
-            m_lRowChars = At(Split(SendCommand(ucsFpcInfoDaisyConsts), ","), 10)
+            m_uConfig.RowChars = At(Split(SendCommand(ucsFpcInfoDaisyConsts), ","), 10)
             Exceptions = bPrevExceptions
         End If
-        If m_lRowChars <= 0 Then
-            m_lRowChars = DEF_COMMENT_LEN
+        If m_uConfig.RowChars <= 0 Then
+            m_uConfig.RowChars = DEF_COMMENT_LEN
         End If
     End If
-    pvRowChars = m_lRowChars
+    pvRowChars = m_uConfig.RowChars
 End Property
 
 '=========================================================================
 ' Methods
 '=========================================================================
 
-Public Function EnumPorts() As Variant
-    Const FUNC_NAME     As String = "EnumPorts"
-    Dim hComm           As Long
+Public Function AutodetectDevices(vPorts As Variant) As Variant
+    Const FUNC_NAME     As String = "AutodetectDevices"
+    Const STR_SPEEDS    As String = "115200|38400|9600|19200|57600"
+    Dim lIdx            As Long
+    Dim sText           As String
+    Dim vRetVal()       As Variant
+    Dim vSpeed          As Variant
+    Dim aPorts()        As UcsAutodetect
+    Dim hEvents()       As Long
+    Dim lEventsCount    As Long
+    Dim lResult         As Long
+    Dim lActual         As Long
+    Dim sProtocol       As String
+    Dim sModel          As String
     Dim sError          As String
-    Dim sResult         As String
-    Dim vPort           As Variant
-    Dim vRet            As Variant
-    Dim lCount          As Long
     
     On Error GoTo EH
-    ReDim vRet(0 To 255) As Variant
-    For Each vPort In EnumSerialPorts
-        sError = vbNullString
-        hComm = pvOpenPort(vPort & ",9600,8,N,1", sError)
-        If hComm <> INVALID_HANDLE_VALUE And LenB(sError) = 0 Then
-            sResult = pvSendCommand(hComm, 500, ucsFpcInfoStatus, sError:=sError)
-            If LenB(sResult) <> 0 And LenB(sError) = 0 Then
-                If Asc(sResult) = 1 Then
-                    vRet(lCount) = vPort
-                    lCount = lCount + 1
+    sText = Chr$(1) & Chr$(&H24) & Chr$(&H20) & Chr(&H20) & Chr$(5) & Chr$(&H30) & Chr$(&H30) & Chr$(&H30) & Chr$(&H30) & Chr$(3)
+    vRetVal = vPorts
+    For Each vSpeed In Split(STR_SPEEDS, "|")
+        ReDim aPorts(0 To UBound(vPorts)) As UcsAutodetect
+        ReDim hEvents(0 To UBound(vPorts)) As Long
+        lEventsCount = 0
+        For lIdx = 0 To UBound(aPorts)
+            With aPorts(lIdx)
+                If Not IsArray(vRetVal(lIdx)) And LenB(At(vPorts, lIdx)) <> 0 Then
+                    sError = vbNullString
+                    .hComm = pvOpenPort(At(vPorts, lIdx) & "," & vSpeed, sError:=sError)
+                    If .hComm <> INVALID_HANDLE_VALUE And LenB(sError) = 0 Then
+                        .WriteOver.hEvent = CreateEvent(0, 1, 0, 0)
+                        .ReadOver.hEvent = CreateEvent(0, 1, 0, 0)
+                    Else
+                        Call CloseHandle(.hComm)
+                        .hComm = 0
+                    End If
                 End If
-            End If
-            Call CloseHandle(hComm)
+            End With
+        Next
+        For lIdx = 0 To UBound(aPorts)
+            With aPorts(lIdx)
+                If .hComm <> 0 Then
+                    lResult = WriteFile(.hComm, ByVal sText, Len(sText), lActual, .WriteOver)
+                    If lResult = 0 And Err.LastDllError = ERROR_IO_PENDING Then
+                        hEvents(lEventsCount) = .WriteOver.hEvent
+                        lEventsCount = lEventsCount + 1
+                    End If
+                End If
+            End With
+        Next
+        If lEventsCount > 0 Then
+'            lResult = WaitForMultipleObjects(lEventsCount, hEvents(0), 1, 100)
+            Call Sleep(100)
+            lEventsCount = 0
         End If
+        For lIdx = 0 To UBound(aPorts)
+            With aPorts(lIdx)
+                If .hComm <> 0 Then
+                    .Buffer = String$(1000, 0)
+                    lResult = ReadFile(.hComm, ByVal StrPtr(.Buffer), LenB(.Buffer), lActual, .ReadOver)
+                    If lResult = 0 And Err.LastDllError = ERROR_IO_PENDING Then
+                        hEvents(lEventsCount) = .ReadOver.hEvent
+                        lEventsCount = lEventsCount + 1
+                    Else
+                        .Buffer = Left$(StrConv(.Buffer, vbUnicode), lActual)
+                    End If
+                End If
+            End With
+        Next
+        If lEventsCount > 0 Then
+            lResult = WaitForMultipleObjects(lEventsCount, hEvents(0), 1, 100)
+            lEventsCount = 0
+        End If
+        For lIdx = 0 To UBound(aPorts)
+            With aPorts(lIdx)
+                If .hComm <> 0 Then
+                    If InStr(.Buffer, Chr$(0)) > 0 Then
+                        .Buffer = StrConv(.Buffer, vbUnicode)
+                        .Buffer = Left$(.Buffer, InStr(.Buffer, Chr$(0)) - 1)
+                    End If
+                    If .Buffer = Chr$(&H15) Then '--- NAK (&H15)
+                        If pvGetDeviceInfo(.hComm, 1000, Empty, sProtocol, sModel) Then
+                            vRetVal(lIdx) = Array(At(vPorts, lIdx), vSpeed, sProtocol, sModel)
+                        End If
+                    End If
+                End If
+            End With
+        Next
+        For lIdx = 0 To UBound(aPorts)
+            With aPorts(lIdx)
+                If .hComm <> 0 Then
+                    Call CloseHandle(.hComm)
+                    Call CloseHandle(.WriteOver.hEvent)
+                    Call CloseHandle(.ReadOver.hEvent)
+                End If
+            End With
+        Next
     Next
-    If lCount = 0 Then
-        EnumPorts = Split(vbNullString)
-    Else
-        ReDim Preserve vRet(0 To lCount - 1) As Variant
-        EnumPorts = vRet
-    End If
+    AutodetectDevices = vRetVal
     Exit Function
 EH:
     RaiseError FUNC_NAME
@@ -653,6 +754,8 @@ Public Function Init( _
             Optional ByVal lCashDeskNo As Long) As Boolean
     Const FUNC_NAME     As String = "Init"
     Dim vSplit          As Variant
+    Dim sSerial         As String
+    Dim bHasSwitchesInfo As Boolean
     
     On Error GoTo EH
     DebugLog FUNC_NAME, "sDevice=" & sDevice & ", lTimeout=" & lTimeout
@@ -678,6 +781,36 @@ Public Function Init( _
     If LenB(m_sLastError) <> 0 Then
         GoTo QH
     End If
+    m_vInfoDiagnostics = Split(pvSendCommand(m_hComm, m_lTimeout, ucsFpcInfoDiagnostics, sError:=m_sLastError), ",")
+    If LenB(m_sLastError) <> 0 Then
+        GoTo QH
+    End If
+    '--- load config values
+    sSerial = At(m_vInfoDiagnostics, 4)
+    bHasSwitchesInfo = Len(At(m_vInfoDiagnostics, 3)) > 2 '--- heuristic check for recent version of firmware
+    With m_uConfig
+        .AbsoluteDiscount = C_Bool(GetConfigValue(sSerial, "AbsoluteDiscount", bHasSwitchesInfo))
+        .NegativePrices = C_Bool(GetConfigValue(sSerial, "NegativePrices", Not bHasSwitchesInfo))
+        .RowChars = C_Lng(GetConfigValue(sSerial, "RowChars", 0))
+        .MaxReceiptRows = C_Lng(GetConfigValue(sSerial, "MaxReceiptRows", DEF_MAX_RECEIPT_ROWS))
+        If .MaxReceiptRows <= 0 Then
+            .MaxReceiptRows = DEF_MAX_RECEIPT_ROWS
+        End If
+        .MinDiscount = C_Dbl(GetConfigValue(sSerial, "MinDiscount", DEF_MIN_DISCOUNT))
+        If .MinDiscount >= 0 Then
+            .MinDiscount = DEF_MIN_DISCOUNT
+        End If
+        .MaxDiscount = C_Dbl(GetConfigValue(sSerial, "MaxDiscount", DEF_MAX_DISCOUNT))
+        If .MaxDiscount <= 0 Then
+            .MaxDiscount = DEF_MAX_DISCOUNT
+        End If
+        .MaxPaymentLen = C_Lng(GetConfigValue(sSerial, "MaxPaymentLen", 0))
+        If .MaxPaymentLen <= 0 Then
+            .MaxPaymentLen = DEF_MAX_PAYMENT_LEN
+        End If
+        .Charset = ucsCrsAuto
+        .IsEcr = ucsTri_Undefined
+    End With
     '--- success
     Init = True
 QH:
@@ -700,6 +833,9 @@ Public Function Connect() As Boolean
         GoTo QH
     End If
     m_hComm = pvOpenPort(m_sDevice, m_sLastError)
+    If LenB(m_sLastError) <> 0 Then
+        GoTo QH
+    End If
     '--- success
     Connect = True
 QH:
@@ -723,9 +859,6 @@ Public Function Disconnect() As Boolean
     End If
     Call CloseHandle(m_hComm)
     m_hComm = INVALID_HANDLE_VALUE
-    '--- cleanup cache
-    m_eCharset = ucsCrsAuto
-    m_eIsEcr = ucsTri_Undefined
     '--- success
     Disconnect = True
 QH:
@@ -745,14 +878,14 @@ Public Function SendCommand(ByVal eCmd As UcsIclCommandsEnum, Optional sData As 
     On Error GoTo EH
     m_sLastError = vbNullString
     '--- auto-sense encoding
-    If m_eCharset = ucsCrsAuto Then
+    If m_uConfig.Charset = ucsCrsAuto Then
         vResult = Split(pvSendCommand(m_hComm, m_lTimeout, ucsFpcInitDecimals, sError:=m_sLastError), ",")
         If LenB(m_sLastError) <> 0 Then
             Err.Raise vbObjectError, , m_sLastError
         End If
         '--- first char of currency name
         lChar = Asc(Zn(Trim$(At(vResult, 2)), " "))
-        m_eCharset = IIf(lChar >= MIK_OFFSET And lChar < MIK_OFFSET + &H40, ucsCrsMik, ucsCrsWindows)
+        m_uConfig.Charset = IIf(lChar >= MIK_OFFSET And lChar < MIK_OFFSET + &H40, ucsCrsMik, ucsCrsWindows)
     End If
     SendCommand = pvSendCommand(m_hComm, m_lTimeout, eCmd, sData, m_sLastError)
     RaiseEvent CommandComplete(eCmd, sData, SendCommand)
@@ -762,11 +895,11 @@ Public Function SendCommand(ByVal eCmd As UcsIclCommandsEnum, Optional sData As 
     If Exceptions Then
         If Status(ucsStbPrintingError) Then
             m_sLastError = ErrorText
-            Err.Raise vbObjectError, , ErrorText
+            Err.Raise vbObjectError, , m_sLastError
         End If
         If Memory(ucsFmeMemoryError) Then
             m_sLastError = MemoryText
-            Err.Raise vbObjectError, , MemoryText
+            Err.Raise vbObjectError, , m_sLastError
         End If
     End If
     Exit Function
@@ -871,8 +1004,10 @@ End Function
 
 Public Function AddDiscount( _
             ByVal DiscType As UcsFiscalDiscountTypeEnum, _
-            Value As Double) As Boolean
+            Value As Double, _
+            Optional ByVal BeforeIndex As Long) As Boolean
     Const FUNC_NAME     As String = "AddDiscount"
+    Dim uRow            As UcsRowData
     Dim lIdx            As Long
     
     On Error GoTo EH
@@ -882,9 +1017,9 @@ Public Function AddDiscount( _
     End If
     Select Case DiscType
     Case ucsFscDstTotal
-        AddPLU Printf(IIf(Value > 0, pvText(ucsTxtSurcharge), pvText(ucsTxtDiscount)), vbNullString), Value
+        AddPLU Printf(IIf(Value > 0, pvText(ucsTxtSurcharge), pvText(ucsTxtDiscount)), vbNullString), Value, BeforeIndex:=BeforeIndex
     Case ucsFscDstPlu
-        For lIdx = m_lRowCount - 1 To 0 Step -1
+        For lIdx = IIf(BeforeIndex <> 0, BeforeIndex, m_lRowCount) - 1 To 0 Step -1
             With m_uRow(lIdx)
                 If .RowType = ucsRowPlu Then
                     .DiscType = DiscType
@@ -894,12 +1029,13 @@ Public Function AddDiscount( _
             End With
         Next
     Case Else
-        With m_uRow(pvAddRow())
+        With uRow
             .RowType = ucsRowDiscount
-            .DiscType = LimitLong(DiscType, 1, [_ucsFscDstMax] - 1)
+            .DiscType = DiscType ' LimitLong(DiscType, 1, [_ucsFscDstMax] - 1)
             .DiscValue = Round(Value, 2)
             .PrintRowType = m_uRow(0).InitReceiptType
         End With
+        pvInsertRow BeforeIndex, uRow
     End Select
     '--- success
     AddDiscount = True
@@ -1007,7 +1143,13 @@ Public Function EndReceipt() As Boolean
         Case ucsRowPlu
             uCtx.PluCount = uCtx.PluCount + 1
             dblTotal = Round(.PluPrice * .PluQuantity, 2)
-            dblDisc = Round(dblTotal * IIf(.DiscType = ucsFscDstPlu, .DiscValue, 0) / 100#, 2)
+            If .DiscType = ucsFscDstPlu Then
+                dblDisc = Round(dblTotal * .DiscValue / 100#, 2)
+            ElseIf .DiscType = ucsFscDstPluAbs Then
+                dblDisc = Round(.DiscValue, 2)
+            Else
+                dblDisc = 0
+            End If
             uCtx.GrpTotal(.PluVatGroup) = Round(uCtx.GrpTotal(.PluVatGroup) + dblTotal + dblDisc, 2)
             Select Case .PrintRowType
             Case ucsFscRetFiscal, ucsFscRetInvoiceFiscal
@@ -1023,9 +1165,10 @@ Public Function EndReceipt() As Boolean
                 If .PluQuantity <> 1 Then
                     sData = sData & "*" & pvSafeFormat(.PluQuantity, "0.000")
                 End If
-                If .DiscType = ucsFscDstPlu Then
-                    sData = sData & "," & pvSafeFormat(.DiscValue, "0.00")
-                End If
+                Select Case .DiscType
+                Case ucsFscDstPlu, ucsFscDstPluAbs
+                    sData = sData & IIf(.DiscType = ucsFscDstPlu, ",", ";") & pvSafeFormat(.DiscValue, "0.00")
+                End Select
                 SendCommand ucsFpcFiscalSell, sData
             Case ucsFscRetNonfiscal, ucsFscRetInvoiceNonfiscal
                 If uCtx.PluCount = 1 Then
@@ -1059,20 +1202,25 @@ Public Function EndReceipt() As Boolean
                     pvPrintLine AlignText(pvText(ucsTxtPluQuantity), pvSafeFormat(.PluQuantity, "0.000"), pvRowChars - 2)
                     pvPrintLine AlignText(pvText(ucsTxtPluTotal), pvSafeFormat(dblTotal, "0.00") & " " & Chr$(191 + .PluVatGroup), pvRowChars)
                 End If
-                If .DiscType = ucsFscDstPlu Then
-                    sData = AlignText(Printf(IIf(dblDisc > 0, pvText(ucsTxtSurcharge), pvText(ucsTxtDiscount)), pvSafeFormat(Abs(.DiscValue), "0.00") & " %"), _
+                Select Case .DiscType
+                Case ucsFscDstPlu, ucsFscDstPluAbs
+                    sData = AlignText(Printf(IIf(dblDisc > 0, pvText(ucsTxtSurcharge), pvText(ucsTxtDiscount)), IIf(.DiscType = ucsFscDstPlu, pvSafeFormat(Abs(.DiscValue), "0.00") & " %", vbNullString)), _
                         pvSafeFormat(dblDisc, "0.00") & " " & Chr$(191 + .PluVatGroup), pvRowChars)
                     pvPrintLine sData
-                End If
+                End Select
             End Select
         Case ucsRowDiscount
             Select Case .PrintRowType
             Case ucsFscRetFiscal, ucsFscRetInvoiceFiscal
-                If .DiscType = ucsFscDstSubtotal Then
+                Select Case .DiscType
+                Case ucsFscDstSubtotal
                     SendCommand ucsFpcFiscalSubtotal, "10," & pvSafeFormat(.DiscValue, "0.00")
-                End If
+                Case ucsFscDstSubtotalAbs
+                    SendCommand ucsFpcFiscalSubtotal, "10;" & pvSafeFormat(.DiscValue, "0.00")
+                End Select
             Case ucsFscRetNonfiscal, ucsFscRetInvoiceNonfiscal
-                If .DiscType = ucsFscDstSubtotal Then
+                Select Case .DiscType
+                Case ucsFscDstSubtotal
                     pvPrintLine AlignText(pvText(ucsTxtSubTotal), pvSafeFormat(SumArray(uCtx.GrpTotal), "0.00"), pvRowChars - 2)
                     For lIdx = 1 To UBound(uCtx.GrpTotal)
                         If uCtx.GrpTotal(lIdx) <> 0 Then
@@ -1081,16 +1229,20 @@ Public Function EndReceipt() As Boolean
                                 pvSafeFormat(dblTotal, "0.00") & " " & Chr$(191 + lIdx), pvRowChars)
                         End If
                     Next
-                End If
+                Case ucsFscDstSubtotalAbs
+                    '--- ToDo: impl absolute subtotal discount
+                End Select
             End Select
-            If .DiscType = ucsFscDstSubtotal Then
+            Select Case .DiscType
+            Case ucsFscDstSubtotal
                 For lIdx = 1 To UBound(uCtx.GrpTotal)
                     If uCtx.GrpTotal(lIdx) <> 0 Then
                         dblTotal = Round(uCtx.GrpTotal(lIdx) * .DiscValue / 100#, 2)
                         uCtx.GrpTotal(lIdx) = Round(uCtx.GrpTotal(lIdx) + dblTotal, 2)
                     End If
                 Next
-            End If
+            Case ucsFscDstSubtotalAbs
+            End Select
         Case ucsRowLine
             If .LineWordWrap Then
                 vSplit = WrapText(.LineText, pvRowChars)
@@ -1124,9 +1276,9 @@ Public Function EndReceipt() As Boolean
                     sType = Mid$("PDCNIJKL", .PmtType, 1)
                     If .PmtType > 4 Then
                         bPrevExceptions = pvSetExceptions(False)
-                        SendCommand ucsFpcInitPaymentType, sType & "," & Left$(.PmtName, MAX_PAYMENT_LEN)
+                        SendCommand ucsFpcInitPaymentType, sType & "," & Left$(.PmtName, m_uConfig.MaxPaymentLen)
                         If Status(ucsStbPrintingError) Then
-                            SendCommand ucsFpcInitDaisyText, "P" & (56 + .PmtType) & "," & Left$(.PmtName, MAX_PAYMENT_LEN)
+                            SendCommand ucsFpcInitDaisyText, "P" & (56 + .PmtType) & "," & Left$(.PmtName, m_uConfig.MaxPaymentLen)
                         End If
                         Exceptions = bPrevExceptions
                     End If
@@ -1296,13 +1448,17 @@ Public Function RunXReport(ByVal ReportType As UcsFiscalReportsTypeEnum) As Bool
     End Select
     If eCmd <> 0 Then
         bPrevExceptions = pvSetExceptions(False)
-        SendCommand eCmd, "2N"
+        SendCommand eCmd, "2"
         If Status(ucsStbPrintingError) Then
-            '--- daisy: pechat po depatamenti
+            '--- daisy: print by departaments
             If eCmd = ucsFpcPrintDailyReportDepartments Then
-                SendCommand ucsFpcPrintDailyReport, "9N"
+                SendCommand ucsFpcPrintDailyReport, "9"
             ElseIf eCmd = ucsFpcPrintDailyReportItemsDepartments Then
-                SendCommand ucsFpcPrintDailyReportItems, "9N"
+                SendCommand ucsFpcPrintDailyReportItems, "9"
+            Else
+                Exceptions = bPrevExceptions
+                m_sLastError = ErrorText
+                Err.Raise vbObjectError, , m_sLastError
             End If
         End If
         Exceptions = bPrevExceptions
@@ -1345,13 +1501,17 @@ Public Function RunZReport(ByVal ReportType As UcsFiscalReportsTypeEnum) As Bool
 '            Next
 '            SendCommand ucsFpcInitEcTape, "E"
 '        End If
-        SendCommand eCmd, "0N"
+        SendCommand eCmd, "0"
         If Status(ucsStbPrintingError) Then
-            '--- daisy: pechat po depatamenti
+            '--- daisy: print by departments
             If eCmd = ucsFpcPrintDailyReportDepartments Then
-                SendCommand ucsFpcPrintDailyReport, "8N"
+                SendCommand ucsFpcPrintDailyReport, "8"
             ElseIf eCmd = ucsFpcPrintDailyReportItemsDepartments Then
-                SendCommand ucsFpcPrintDailyReportItems, "8N"
+                SendCommand ucsFpcPrintDailyReportItems, "8"
+            Else
+                Exceptions = bPrevExceptions
+                m_sLastError = ErrorText
+                Err.Raise vbObjectError, , m_sLastError
             End If
         End If
         Exceptions = bPrevExceptions
@@ -1415,12 +1575,9 @@ End Function
 
 Public Function GetSerialNumber() As String
     Const FUNC_NAME     As String = "GetSerialNumber"
-    Dim bPrevExceptions As Boolean
     
     On Error GoTo EH
-    bPrevExceptions = pvSetExceptions(False)
-    GetSerialNumber = At(Split(SendCommand(ucsFpcInfoDiagnostics), ","), 4)
-    Exceptions = bPrevExceptions
+    GetSerialNumber = At(m_vInfoDiagnostics, 4)
     Exit Function
 EH:
     RaiseError FUNC_NAME
@@ -1428,12 +1585,9 @@ End Function
 
 Public Function GetFiscalNumber() As String
     Const FUNC_NAME     As String = "GetFiscalNumber"
-    Dim bPrevExceptions As Boolean
     
     On Error GoTo EH
-    bPrevExceptions = pvSetExceptions(False)
-    GetFiscalNumber = At(Split(SendCommand(ucsFpcInfoDiagnostics), ","), 5)
-    Exceptions = bPrevExceptions
+    GetFiscalNumber = At(m_vInfoDiagnostics, 5)
     Exit Function
 EH:
     RaiseError FUNC_NAME
@@ -1531,14 +1685,14 @@ Public Function CancelReceipt() As Boolean
     bPrevExceptions = pvSetExceptions(False)
     If Left$(SendCommand(ucsFpcInfoTransaction), 1) = "1" Then
         If Status(ucsStbFiscalPrinting) Then
-            '--- note: FP3530 moje da anulira winagi, FP550F ne moje
+            '--- note: FP-3530 can cancel always, FP-550 sometimes can not
             SendCommand ucsFpcFiscalCancel
             If Status(ucsStbFiscalPrinting) Then
-                '--- note: ako platenata suma e po-malka ot sumata na bona, towa pomaga
+                '--- note: this helps if sum payed is less than total receipt sum
                 SendCommand ucsFpcFiscalPayment, vbTab
                 '--- note: when printing invoice, if no contragent info set then cancel fails!
                 SendCommand ucsFpcFiscalCgInfo, "0000000000"
-                '--- zaradi FP550F
+                '--- for FP-550
                 SendCommand ucsFpcFiscalClose
             End If
         Else
@@ -1555,12 +1709,9 @@ End Function
 
 Public Function GetDeviceModel() As String
     Const FUNC_NAME     As String = "GetDeviceModel"
-    Dim bPrevExceptions As Boolean
     
     On Error GoTo EH
-    bPrevExceptions = pvSetExceptions(False)
-    GetDeviceModel = At(Split(SendCommand(ucsFpcInfoDiagnostics), ","), 0)
-    Exceptions = bPrevExceptions
+    pvGetDeviceInfo m_hComm, m_lTimeout, m_vInfoDiagnostics, vbNullString, GetDeviceModel
     Exit Function
 EH:
     RaiseError FUNC_NAME
@@ -1568,27 +1719,15 @@ End Function
 
 Public Function GetDeviceProtocol() As String
     Const FUNC_NAME     As String = "GetDeviceProtocol"
-    Dim sResult         As String
-    Dim sError          As String
-    Dim sSerial         As String
     
     On Error GoTo EH
-    sResult = pvSendCommand(m_hComm, m_lTimeout, ucsFpcInfoDiagnostics, sError:=sError)
-    If LenB(sResult) <> 0 And LenB(sError) = 0 Then
-        sSerial = At(Split(sResult, ","), 4)
-'        sResult = pvSendCommand(m_hComm, 500, ucsFpcInfoStatus, sError:=sError)
-    End If
-    If Left$(sSerial, 2) = "DY" Then
-        GetDeviceProtocol = STR_PROTOCOL_DAISY_ECR
-    ElseIf LenB(sSerial) <> 0 Then
-        GetDeviceProtocol = STR_PROTOCOL_DATECS_FP
-    End If
+    pvGetDeviceInfo m_hComm, m_lTimeout, m_vInfoDiagnostics, GetDeviceProtocol, vbNullString
     Exit Function
 EH:
     RaiseError FUNC_NAME
 End Function
 
-Private Function GetTotalsByVatGroups() As Variant
+Public Function GetTotalsByVatGroups() As Variant
     Const FUNC_NAME     As String = "GetTotalsByVatGroups"
     Dim bPrevExceptions As Boolean
     Dim vSplit          As Variant
@@ -1600,17 +1739,43 @@ Private Function GetTotalsByVatGroups() As Variant
     vSplit = Split(SendCommand(ucsFpcInfoTotalsByVatGroups), ",")
     Exceptions = bPrevExceptions
     If UBound(vSplit) > 0 Then
-        ReDim vRetVal(0 To UBound(vSplit) - 1) As Double
+        ReDim vRetVal(0 To 7) As Double
         For lIdx = 0 To UBound(vRetVal)
-            If InStr(vSplit(lIdx + 1), ".") > 0 Then
-                vRetVal(lIdx) = C_Dbl(Replace(vSplit(lIdx + 1), ".", g_sDecimalSeparator))
+            If InStr(At(vSplit, lIdx + 1), ".") > 0 Then
+                vRetVal(lIdx) = C_Dbl(Replace(At(vSplit, lIdx + 1), ".", g_sDecimalSeparator))
             Else
-                vRetVal(lIdx) = C_Dbl(vSplit(lIdx + 1)) / 100#
+                vRetVal(lIdx) = C_Dbl(At(vSplit, lIdx + 1)) / 100#
             End If
         Next
         GetTotalsByVatGroups = vRetVal
     Else
         GetTotalsByVatGroups = EmptyDoubleArray
+    End If
+    Exit Function
+EH:
+    RaiseError FUNC_NAME
+End Function
+
+Public Function CashDebitCredit(ByVal dblValue As Double) As Variant
+    Const FUNC_NAME     As String = "CashDebitCredit"
+    Dim vSplit          As Variant
+    Dim vRetVal         As Variant
+    Dim lIdx            As Long
+    
+    On Error GoTo EH
+    vSplit = Split(SendCommand(ucsFpcAdminCashDebitCredit, IIf(dblValue <> 0, pvSafeFormat(dblValue, "0.00"), vbNullString)), ",")
+    If UBound(vSplit) > 0 Then
+        ReDim vRetVal(0 To 2) As Double
+        For lIdx = 0 To UBound(vRetVal)
+            If InStr(At(vSplit, lIdx + 1), ".") > 0 Then
+                vRetVal(lIdx) = C_Dbl(Replace(At(vSplit, lIdx + 1), ".", g_sDecimalSeparator))
+            Else
+                vRetVal(lIdx) = C_Dbl(At(vSplit, lIdx + 1)) / 100#
+            End If
+        Next
+        CashDebitCredit = vRetVal
+    Else
+        CashDebitCredit = EmptyDoubleArray
     End If
     Exit Function
 EH:
@@ -1811,15 +1976,17 @@ Private Function pvTranscode(sText As String, ByVal bToPrinter As Boolean) As St
     Dim lChar           As Long
     
     On Error GoTo EH
+    #If bToPrinter Then '--- touch arg
+    #End If
     pvTranscode = sText
     For lIdx = 1 To Len(pvTranscode)
         lChar = Asc(Mid$(pvTranscode, lIdx, 1))
-'        If bToPrinter And m_eCharset = ucsCrsMik And lChar >= WIN_OFFSET And lChar < WIN_OFFSET + &H40 Then
+'        If bToPrinter And m_uConfig.Charset = ucsCrsMik And lChar >= WIN_OFFSET And lChar < WIN_OFFSET + &H40 Then
 '            Mid$(pvTranscode, lIdx, 1) = Chr$(lChar + MIK_OFFSET - WIN_OFFSET)
-'        ElseIf m_eCharset <> ucsCrsAuto And lChar >= MIK_OFFSET And lChar < MIK_OFFSET + &H40 Then
+'        ElseIf m_uConfig.Charset <> ucsCrsAuto And lChar >= MIK_OFFSET And lChar < MIK_OFFSET + &H40 Then
 '            Mid$(pvTranscode, lIdx, 1) = Chr$(lChar + WIN_OFFSET - MIK_OFFSET)
 '        End If
-        If m_eCharset = ucsCrsMik Then
+        If m_uConfig.Charset = ucsCrsMik Then
             Mid$(pvTranscode, lIdx, 1) = Chr$(IIf(lChar >= &H80, lChar Xor &H40, lChar))
         End If
     Next
@@ -1854,20 +2021,18 @@ EH:
     RaiseError FUNC_NAME
 End Sub
 
-Friend Function frGetFlagsText(ByVal lFlags As Long, sTexts As String) As String
+Friend Function frGetFlagsText(ByVal lFlags As Long, vTexts As Variant) As String
     Const FUNC_NAME     As String = "frGetFlagsText"
     Dim lIdx            As Long
-    Dim vSplit          As Variant
     
     On Error GoTo EH
-    vSplit = Split(sTexts, "|")
-    For lIdx = 0 To UBound(vSplit)
+    For lIdx = 0 To UBound(vTexts)
         If (lFlags And (2 ^ lIdx)) <> 0 Then
-            If Len(vSplit(lIdx)) > 1 Then
+            If Len(vTexts(lIdx)) > 1 Then
                 If LenB(frGetFlagsText) <> 0 Then
                     frGetFlagsText = frGetFlagsText & ", "
                 End If
-                frGetFlagsText = frGetFlagsText & vSplit(lIdx)
+                frGetFlagsText = frGetFlagsText & vTexts(lIdx)
             End If
         End If
     Next
@@ -1880,7 +2045,10 @@ Private Function pvInternal(ByVal lIdx As UcsInternalErrors) As String
     Const FUNC_NAME     As String = "pvInternal"
     
     On Error GoTo EH
-    pvInternal = At(Split(LocalizedText(ucsFscLciInternalErrors), "|"), lIdx, At(Split(STR_INTERNAL, "|"), lIdx))
+    pvInternal = At(m_uConfig.LocalizedText(ucsFscLciInternalErrors), lIdx)
+    If LenB(pvInternal) = 0 Then
+        pvInternal = At(Split(STR_INTERNAL, "|"), lIdx)
+    End If
     Exit Function
 EH:
     RaiseError FUNC_NAME
@@ -1890,7 +2058,10 @@ Private Function pvText(ByVal lIdx As UcsReceiptTextsEnum) As String
     Const FUNC_NAME     As String = "pvText"
     
     On Error GoTo EH
-    pvText = At(Split(m_sLocalizedText(ucsFscLciReceiptTexts), "|"), lIdx, At(Split(STR_RECEIPT_TEXTS, "|"), lIdx))
+    pvText = At(m_uConfig.LocalizedText(ucsFscLciReceiptTexts), lIdx)
+    If LenB(pvText) = 0 Then
+        pvText = At(Split(STR_RECEIPT_TEXTS, "|"), lIdx)
+    End If
     Exit Function
 EH:
     RaiseError FUNC_NAME
@@ -1992,6 +2163,9 @@ Private Sub pvConvertExtraRows()
     Dim dblTotal        As Double
     Dim uSum            As UcsContext
     Dim dblDiscount     As Double
+    Dim dblDiscTotal    As Double
+    Dim dblPrice        As Double
+    Dim vSplit          As Variant
     
     On Error GoTo EH
     '--- convert out-of-range discounts to PLU rows
@@ -2000,31 +2174,53 @@ Private Sub pvConvertExtraRows()
         '--- note: 'With' locks m_uRow array and fails if auto-grow needed in AddPLU
 '        With m_uRow(lRow)
             If m_uRow(lRow).RowType = ucsRowPlu Then
-                If (m_uRow(lRow).DiscValue < MIN_DISCOUNT Or m_uRow(lRow).DiscValue > MAX_DISCOUNT) Then
-                    dblTotal = Round(m_uRow(lRow).PluQuantity * m_uRow(lRow).PluPrice, 2)
-                    dblDiscount = Limit(m_uRow(lRow).DiscValue, MIN_DISCOUNT, MAX_DISCOUNT)
-                    If Round(dblTotal * m_uRow(lRow).DiscValue / 100#, 2) = Round(dblTotal * dblDiscount / 100#, 2) Then
+                dblPrice = m_uRow(lRow).PluPrice
+                dblTotal = Round(m_uRow(lRow).PluQuantity * dblPrice, 2)
+                dblDiscTotal = Round(dblTotal * m_uRow(lRow).DiscValue / 100#, 2)
+                If Not m_uConfig.NegativePrices And dblPrice <= 0 Then
+                    vSplit = WrapText(m_uRow(lRow).PluName, pvRowChars - 5)
+                    lIdx = LimitLong(UBound(vSplit), , 1)
+                    vSplit(lIdx) = AlignText(vSplit(lIdx), pvSafeFormat(dblTotal + dblDiscTotal, "0.00"), pvRowChars)
+                    m_uRow(lRow).RowType = ucsRowLine
+                    m_uRow(lRow).LineText = vSplit(0)
+                    If lIdx > 0 Then
+                        AddLine At(vSplit, 1), False, lRow + 1
+                        lRow = lRow + 1
+                    End If
+                    If dblPrice < 0 Then
+                        AddDiscount ucsFscDstSubtotalAbs, dblTotal + dblDiscTotal, lRow + 1
+                    End If
+                ElseIf (m_uRow(lRow).DiscValue < m_uConfig.MinDiscount Or m_uRow(lRow).DiscValue > m_uConfig.MaxDiscount) Then
+                    dblDiscount = Limit(m_uRow(lRow).DiscValue, m_uConfig.MinDiscount, m_uConfig.MaxDiscount)
+                    If m_uConfig.AbsoluteDiscount Then
+                        m_uRow(lRow).DiscType = ucsFscDstPluAbs
+                        m_uRow(lRow).DiscValue = dblDiscTotal
+                    ElseIf dblDiscTotal = Round(dblTotal * dblDiscount / 100#, 2) Then
                         m_uRow(lRow).DiscValue = dblDiscount
                     Else
                         dblDiscount = m_uRow(lRow).DiscValue
                         m_uRow(lRow).DiscType = 0
                         m_uRow(lRow).DiscValue = 0
-                        AddPLU Printf(IIf(dblTotal * dblDiscount > 0, pvText(ucsTxtSurcharge), pvText(ucsTxtDiscount)), pvSafeFormat(Abs(dblDiscount), "0.00") & " %"), _
-                            Round(dblTotal * dblDiscount / 100#, 2), 1, m_uRow(lRow).PluVatGroup, lRow + 1
+                        AddPLU Printf(IIf(dblDiscTotal > 0, pvText(ucsTxtSurcharge), pvText(ucsTxtDiscount)), pvSafeFormat(Abs(dblDiscount), "0.00") & " %"), _
+                            dblDiscTotal, 1, m_uRow(lRow).PluVatGroup, lRow + 1
                     End If
-                ElseIf m_uRow(lRow).DiscType = ucsFscDstPlu And m_uRow(lRow).PluPrice < 0 Then
+                ElseIf m_uRow(lRow).DiscType = ucsFscDstPlu And dblPrice < 0 Then
                     '--- convert PLU discount on void rows
-                    dblTotal = Round(m_uRow(lRow).PluQuantity * m_uRow(lRow).PluPrice, 2)
-                    dblDiscount = m_uRow(lRow).DiscValue
-                    m_uRow(lRow).DiscType = 0
-                    m_uRow(lRow).DiscValue = 0
-                    AddPLU Printf(IIf(dblTotal * dblDiscount > 0, pvText(ucsTxtSurcharge), pvText(ucsTxtDiscount)), pvSafeFormat(Abs(dblDiscount), "0.00") & " %"), _
-                            Round(dblTotal * dblDiscount / 100#, 2), 1, m_uRow(lRow).PluVatGroup, lRow + 1
+                    If m_uConfig.AbsoluteDiscount Then
+                        m_uRow(lRow).DiscType = ucsFscDstPluAbs
+                        m_uRow(lRow).DiscValue = dblDiscTotal
+                    Else
+                        dblDiscount = m_uRow(lRow).DiscValue
+                        m_uRow(lRow).DiscType = 0
+                        m_uRow(lRow).DiscValue = 0
+                        AddPLU Printf(IIf(dblTotal * dblDiscount > 0, pvText(ucsTxtSurcharge), pvText(ucsTxtDiscount)), pvSafeFormat(Abs(dblDiscount), "0.00") & " %"), _
+                                dblDiscTotal, 1, m_uRow(lRow).PluVatGroup, lRow + 1
+                    End If
                 End If
             ElseIf m_uRow(lRow).RowType = ucsRowDiscount Then
-                If (m_uRow(lRow).DiscValue < MIN_DISCOUNT Or m_uRow(lRow).DiscValue > MAX_DISCOUNT) And m_uRow(lRow).DiscType = ucsFscDstSubtotal Then
+                If (m_uRow(lRow).DiscValue < m_uConfig.MinDiscount Or m_uRow(lRow).DiscValue > m_uConfig.MaxDiscount) And m_uRow(lRow).DiscType = ucsFscDstSubtotal Then
                     pvGetSubtotals lRow, uSum
-                    dblDiscount = Limit(m_uRow(lRow).DiscValue, MIN_DISCOUNT, MAX_DISCOUNT)
+                    dblDiscount = Limit(m_uRow(lRow).DiscValue, m_uConfig.MinDiscount, m_uConfig.MaxDiscount)
                     lCount = 0
                     For lIdx = 1 To UBound(uSum.GrpTotal)
                         If Round(uSum.GrpTotal(lIdx) * m_uRow(lRow).DiscValue / 100#, 2) <> Round(uSum.GrpTotal(lIdx) * dblDiscount / 100#, 2) Then
@@ -2058,7 +2254,7 @@ Private Sub pvConvertExtraRows()
             End If
         End With
     Next
-    If lCount > MAX_RECEIPT_ROWS Then
+    If lCount > m_uConfig.MaxReceiptRows Then
         '--- count different VAT groups in PLUs
         For lRow = 1 To UBound(uCtx.GrpTotal)
             If uCtx.GrpTotal(lRow) <> 0 Then
@@ -2072,18 +2268,20 @@ Private Sub pvConvertExtraRows()
             With m_uRow(lRow)
                 If .RowType = ucsRowPlu Then
                     lCount = lCount + 1
-                    If lCount > MAX_RECEIPT_ROWS - lTotal Then
+                    If lCount > m_uConfig.MaxReceiptRows - lTotal Then
                         .PrintRowType = IIf(.PrintRowType = ucsFscRetFiscal, ucsFscRetNonfiscal, ucsFscRetInvoiceNonfiscal)
                         dblTotal = Round(.PluQuantity * .PluPrice, 2)
                         If .DiscType = ucsFscDstPlu Then
                             dblTotal = Round(dblTotal + Round(dblTotal * .DiscValue / 100#, 2), 2)
+                        ElseIf .DiscType = ucsFscDstPluAbs Then
+                            dblTotal = Round(dblTotal + .DiscValue, 2)
                         End If
                         If .PluVatGroup > 0 Then
                             uCtx.GrpTotal(.PluVatGroup) = Round(uCtx.GrpTotal(.PluVatGroup) + dblTotal, 2)
                         End If
                     End If
                 ElseIf .RowType = ucsRowDiscount And .DiscType = ucsFscDstSubtotal Then
-                    If lCount > MAX_RECEIPT_ROWS - lTotal Then
+                    If lCount > m_uConfig.MaxReceiptRows - lTotal Then
                         .PrintRowType = IIf(.PrintRowType = ucsFscRetFiscal, ucsFscRetNonfiscal, ucsFscRetInvoiceNonfiscal)
                         pvGetSubtotals lRow, uSum
                         For lIdx = 1 To UBound(uCtx.GrpTotal)
@@ -2125,19 +2323,30 @@ Private Sub pvGetSubtotals(ByVal lRow As Long, uCtx As UcsContext)
         With m_uRow(lIdx)
         If .RowType = ucsRowPlu Then
             dblTotal = Round(.PluQuantity * .PluPrice, 2)
-            If .DiscType = ucsFscDstPlu Then
+            Select Case .DiscType
+            Case ucsFscDstPlu
                 dblTotal = Round(dblTotal + Round(dblTotal * .DiscValue / 100#, 2), 2)
-            End If
+            Case ucsFscDstPluAbs
+                dblTotal = Round(dblTotal + .DiscValue, 2)
+            End Select
             If .PluVatGroup > 0 Then
                 uCtx.GrpTotal(.PluVatGroup) = Round(uCtx.GrpTotal(.PluVatGroup) + dblTotal, 2)
             End If
         ElseIf .RowType = ucsRowDiscount Then
-            If .DiscType = ucsFscDstSubtotal Then
+            Select Case .DiscType
+            Case ucsFscDstSubtotal
                 For lJdx = 1 To UBound(uCtx.GrpTotal)
                     dblTotal = Round(uCtx.GrpTotal(lJdx) * .DiscValue / 100#, 2)
                     uCtx.GrpTotal(lJdx) = Round(uCtx.GrpTotal(lJdx) + dblTotal, 2)
                 Next
-            End If
+            Case ucsFscDstSubtotalAbs
+                For lJdx = 1 To UBound(uCtx.GrpTotal)
+                    If uCtx.GrpTotal(lJdx) <> 0 Then
+                        uCtx.GrpTotal(lJdx) = Round(uCtx.GrpTotal(lJdx) - .DiscValue, 2)
+                        Exit For
+                    End If
+                Next
+            End Select
         End If
         End With
     Next
@@ -2145,6 +2354,33 @@ Private Sub pvGetSubtotals(ByVal lRow As Long, uCtx As UcsContext)
 EH:
     RaiseError FUNC_NAME
 End Sub
+
+Private Function pvGetDeviceInfo(ByVal hComm As Long, ByVal lTimeout As Long, vResult As Variant, sProtocol As String, sModel As String, Optional sError As String) As Boolean
+    Const FUNC_NAME     As String = "pvGetDeviceInfo"
+    
+    On Error GoTo EH
+    If Not IsArray(vResult) Then
+        vResult = Split(pvSendCommand(hComm, lTimeout, ucsFpcInfoDiagnostics, sError:=sError), ",")
+    End If
+    If UBound(vResult) >= 4 And LenB(sError) = 0 Then
+        '--- check serial
+        If Left$(At(vResult, 4), 2) = "DY" Then
+            sProtocol = STR_PROTOCOL_DAISY_ECR
+        ElseIf LenB(At(vResult, 4)) <> 0 Then
+            sProtocol = STR_PROTOCOL_DATECS_FP
+        End If
+        sModel = At(vResult, 0)
+        If Len(At(vResult, 3)) > 2 Then
+            sModel = sModel & " " & At(vResult, 1)
+        End If
+        '--- success
+        pvGetDeviceInfo = True
+    End If
+    Exit Function
+EH:
+    PrintError FUNC_NAME
+    Resume Next
+End Function
 
 '=========================================================================
 ' Base class events
@@ -2155,7 +2391,11 @@ Private Sub Class_Initialize()
     m_lTimeout = DEF_TIMEOUT
     m_lSequence = &H20
     m_bExceptions = True
-    m_eIsEcr = ucsTri_Undefined
+    LocalizedText(ucsFscLciInternalErrors) = STR_INTERNAL
+    LocalizedText(ucsFscLciPrinterStatuses) = STR_STATUSES
+    LocalizedText(ucsFscLciPrinterErrors) = STR_ERRORS_ONLY
+    LocalizedText(ucsFscLciDipSwitchesTexts) = STR_DIP_SWITCHES
+    LocalizedText(ucsFscLciMemoryTexts) = STR_MEMORY
 End Sub
 
 Private Sub Class_Terminate()
@@ -2185,8 +2425,16 @@ Private Function IDeviceProtocol_AddPLU(Name As String, Price As Double, Quantit
     IDeviceProtocol_AddPLU = AddPLU(Name, Price, Quantity, VatGroup)
 End Function
 
+Private Function IDeviceProtocol_AutodetectDevices(Ports As Variant) As Variant
+    IDeviceProtocol_AutodetectDevices = AutodetectDevices(Ports)
+End Function
+
 Private Function IDeviceProtocol_CancelReceipt() As Boolean
     IDeviceProtocol_CancelReceipt = CancelReceipt()
+End Function
+
+Private Function IDeviceProtocol_CashDebitCredit(OperatorCode As String, OperatorPassword As String, ByVal Value As Double) As Variant
+    IDeviceProtocol_CashDebitCredit = CashDebitCredit(Value)
 End Function
 
 Private Function IDeviceProtocol_Connect() As Boolean
@@ -2289,7 +2537,7 @@ Private Function IDeviceProtocol_OpenDrawer() As Boolean
     IDeviceProtocol_OpenDrawer = OpenDrawer()
 End Function
 
-Public Function IDeviceProtocol_RunPeriodReport(ByVal ReportType As UcsFiscalReportsTypeEnum, ByVal StartDate As Date, ByVal EndDate As Date) As Boolean
+Private Function IDeviceProtocol_RunPeriodReport(ByVal ReportType As UcsFiscalReportsTypeEnum, ByVal StartDate As Date, ByVal EndDate As Date) As Boolean
     IDeviceProtocol_RunPeriodReport = RunPeriodReport(ReportType, StartDate, EndDate)
 End Function
 
