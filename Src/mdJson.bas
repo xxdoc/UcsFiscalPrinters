@@ -1,6 +1,6 @@
 Attribute VB_Name = "mdJson"
 '=========================================================================
-' $Header: /UcsFiscalPrinter/Src/mdJson.bas 1     5.10.12 10:22 Wqw $
+' $Header: /UcsFiscalPrinter/Src/mdJson.bas 2     16.11.12 18:52 Wqw $
 '
 '   Unicontsoft Fiscal Printers Project
 '   Copyright (c) 2008-2012 Unicontsoft
@@ -8,6 +8,9 @@ Attribute VB_Name = "mdJson"
 '   JSON parsing and dumping functions
 '
 ' $Log: /UcsFiscalPrinter/Src/mdJson.bas $
+' 
+' 2     16.11.12 18:52 Wqw
+' REF: description
 ' 
 ' 1     5.10.12 10:22 Wqw
 ' Initial implementation
