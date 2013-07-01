@@ -12,15 +12,24 @@ Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = True
 '=========================================================================
-' $Header: /UcsFiscalPrinter/Src/IDeviceProtocol.cls 13    4.01.13 12:21 Wqw $
+' $Header: /UcsFiscalPrinter/Src/IDeviceProtocol.cls 16    20.06.13 12:48 Wqw $
 '
 '   Unicontsoft Fiscal Printers Project
-'   Copyright (c) 2008-2012 Unicontsoft
+'   Copyright (c) 2008-2013 Unicontsoft
 '
 '   Protocol za uprawlenie na fiscalno ustrojstwo
 '
 ' $Log: /UcsFiscalPrinter/Src/IDeviceProtocol.cls $
 ' 
+' 16    20.06.13 12:48 Wqw
+' ADD: custom payment types
+'
+' 15    18.06.13 17:16 Wqw
+' ADD: Function GetTotalsByPayments, GetTotalsStats
+'
+' 14    14.03.13 16:26 Wqw
+' ADD: UcsFiscalErrorsEnum for GetLastError. REF: ByVal numeric params
+'
 ' 13    4.01.13 12:21 Wqw
 ' REF: set clock returns bool, get last receipt number returns string
 '
@@ -80,9 +89,11 @@ End Enum
 
 Public Enum UcsFiscalPaymentTypeEnum
     ucsFscPmtCash = 1
-    ucsFscPmtCard
-    ucsFscPmtCheque
-    ucsFscPmtCredit
+    ucsFscPmtCard = 2
+    ucsFscPmtCheque = 3
+    ucsFscPmtCustom1 = -1
+    ucsFscPmtCustom2 = -2
+    ucsFscPmtCustom3 = -3
 End Enum
 
 Public Enum UcsFiscalLocalizedIndexesEnum
@@ -104,6 +115,13 @@ Public Enum UcsFiscalReportsTypeEnum
     ucsFscRstPeriodDetailed
 End Enum
 
+Public Enum UcsFiscalErrorsEnum
+    ucsFerNone
+    ucsFerGeneralError
+    ucsFerInvalidPassword
+    ucsFerPasswordNotSet
+End Enum
+
 Public Function Init(Device As String, Optional ByVal Timeout As Long, Optional ByVal CashDeskNo As Long) As Boolean
 
 End Function
@@ -120,7 +138,7 @@ Property Get IsConnected() As Boolean
 
 End Property
 
-Public Function GetLastError() As String
+Public Function GetLastError(Optional ErrNumber As UcsFiscalErrorsEnum) As String
 
 End Function
 
@@ -142,9 +160,9 @@ End Function
 
 Public Function AddPLU( _
             Name As String, _
-            Price As Double, _
-            Quantity As Double, _
-            VatGroup As Long) As Boolean
+            ByVal Price As Double, _
+            ByVal Quantity As Double, _
+            ByVal VatGroup As Long) As Boolean
             
 End Function
 
@@ -157,15 +175,15 @@ End Function
 
 Public Function AddDiscount( _
             ByVal DiscType As UcsFiscalDiscountTypeEnum, _
-            Value As Double) As Boolean
+            ByVal Value As Double) As Boolean
             
 End Function
 
 Public Function AddPayment( _
             ByVal Number As UcsFiscalPaymentTypeEnum, _
             Name As String, _
-            Amount As Double, _
-            Optional Rate As Double) As Boolean
+            ByVal Amount As Double, _
+            Optional ByVal Rate As Double) As Boolean
             
 End Function
 
@@ -262,6 +280,14 @@ Public Function GetDeviceModel() As String
 End Function
 
 Public Function GetTotalsByVatGroups() As Variant
+
+End Function
+
+Public Function GetTotalsByPayments() As Variant
+
+End Function
+
+Public Function GetTotalsStats() As Variant
 
 End Function
 

@@ -12,7 +12,7 @@ Attribute VB_Creatable = True
 Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = True
 '=========================================================================
-' $Header: /UcsFiscalPrinter/Src/cICLProtocol.cls 51    10.01.13 16:31 Wqw $
+' $Header: /UcsFiscalPrinter/Src/cICLProtocol.cls 59    26.06.13 22:13 Wqw $
 '
 '   Unicontsoft Fiscal Printers Project
 '   Copyright (c) 2008-2013 Unicontsoft
@@ -21,6 +21,30 @@ Attribute VB_Exposed = True
 '
 ' $Log: /UcsFiscalPrinter/Src/cICLProtocol.cls $
 ' 
+' 59    26.06.13 22:13 Wqw
+' REF: trim payment names
+'
+' 58    26.06.13 20:17 Wqw
+' REF: impl item chars setting
+'
+' 57    25.06.13 17:37 Wqw
+' REF: trim bogus prefix in response from device
+'
+' 56    25.06.13 12:12 Wqw
+' REF: payment names & get totals stats work for ECRs
+'
+' 55    20.06.13 12:49 Wqw
+' REF: handle custom payment types in AddPayment and GetPaymentName
+'
+' 54    18.06.13 17:18 Wqw
+' ADD: Function GetTotalsByPayments, GetTotalsStats, Property IsDaisy
+'
+' 53    14.03.13 16:28 Wqw
+' ADD: Property LastErrNumber
+'
+' 52    26.02.13 19:39 Wqw
+' REF: unknown errors handling
+'
 ' 51    10.01.13 16:31 Wqw
 ' REF: default of max cg info
 '
@@ -235,6 +259,7 @@ Public Enum UcsIclFiscalMemoryEnum
 End Enum
 
 Public Enum UcsIclCommandsEnum
+    ucsFpcNoop = -1
     '--- init
     ucsFpcInitHeaderFooter = 43
     ucsFpcInitDateTime = 61
@@ -271,15 +296,19 @@ Public Enum UcsIclCommandsEnum
     ucsFpcInfoDateTime = 62
     ucsFpcInfoLastFiscalBlock = 64
     ucsFpcInfoTotalsByVatGroups = 65
+    ucsFpcInfoDailyStats = 67
     ucsFpcInfoStatus = 74
     ucsFpcInfoTransaction = 76
+    ucsFpcInfoLastFiscalDateTime = 86
     ucsFpcInfoDepartment = 88
     ucsFpcInfoDiagnostics = 90
     ucsFpcInfoTaxRates = 97
     ucsFpcInfoBulstat = 99
     ucsFpcInfoSums = 103
+    ucsFpcInfoTotalsByPayments = 110
     ucsFpcInfoOperator = 112
     ucsFpcInfoLastReceipt = 113
+    ucsFpcInfoFiscalRecord = 114
     ucsFpcInfoDaisyConsts = 128
     '--- print
     ucsFpcPrintDailyReport = 69
@@ -385,7 +414,7 @@ End Type
 ' Constants and member variables
 '=========================================================================
 
-Private Const STR_INTERNAL              As String = "No device info set|CreateFile failed: |SetCommTimeouts failed: |BuildCommDCB failed: |SetCommState failed: |WriteFile failure: |Timeout waiting for response|ReadFile failed: |Invalid message format or checksum (NAK)|Already connected|Not connected|Invalid response length|Response missing postamble|Response missing preamble|WaitCommEvent failed: |No receipt started| or invalid operator password|Error in line %1: %2|Cannot cancel previous receipt|Invalid report type"
+Private Const STR_INTERNAL              As String = "No device info set|CreateFile failed: |SetCommTimeouts failed: |BuildCommDCB failed: |SetCommState failed: |WriteFile failure: |Timeout waiting for response|ReadFile failed: |Invalid message format or checksum (NAK)|Already connected|Not connected|Invalid response length: %1|Response missing postamble: %1|Response missing preamble: %1|WaitCommEvent failed: %1|No receipt started| or invalid operator password|Error in line %1: %2|Cannot cancel previous receipt|Invalid report type|Error %1|Memory %1"
 Private Const STR_STATUSES              As String = "Syntax error|Invalid command|Clock not set|3|Feed error|5|6|7|Overflow|Command not allowed|Memory reset|3|Memory corrupt|5|6|7|Out of paper|1|2|Fiscal printing|4|Nonfiscal printing|6|7"
 Private Const STR_ERRORS_ONLY           As String = "Syntax error|Invalid command|2|3|Feed error|5|6|7|1|Command not allowed|Memory reset|3|Memory corrupt|5|6|7|Out of paper|1|2|3|4|5|6|7"
 Private Const STR_DIP_SWITCHES          As String = "Center header and footer|Enable header|Sw1.3|Sw1.4|Zero memory|Transparent display|No display|7"
@@ -418,6 +447,7 @@ Private m_lSequence                 As Long
 Private m_eStatus                   As UcsIclStatusBitsEnum
 Private m_eDip                      As UcsIclDipSwitchesEnum
 Private m_eMemory                   As UcsIclFiscalMemoryEnum
+Private m_eLastErrNumber            As UcsFiscalErrorsEnum
 Private m_sLastError                As String
 Private m_bExceptions               As Boolean
 Private m_uRow()                    As UcsRowData
@@ -448,6 +478,8 @@ Private Enum UcsInternalErrors
     ucsErrErrorInLine
     ucsErrCannotCancelReceipt
     ucsErrInvalidReportType
+    ucsErrUnknownError
+    ucsErrUnknownMemory
 End Enum
 
 Private Enum UcsReceiptTextsEnum
@@ -551,7 +583,9 @@ End Type
 Private Type UcsConfigValues
     Charset             As UcsCharset
     IsEcr               As UcsTriState
+    IsDaisy             As Boolean
     RowChars            As Long
+    ItemChars           As Long
     AbsoluteDiscount    As Boolean
     NegativePrices      As Boolean
     MaxReceiptRows      As Long
@@ -623,6 +657,10 @@ Property Get MemoryText() As String
     MemoryText = pvGetFlagsText(m_eMemory, m_uConfig.LocalizedText(ucsFscLciMemoryTexts))
 End Property
 
+Property Get LastErrNumber() As UcsFiscalErrorsEnum
+    LastErrNumber = m_eLastErrNumber
+End Property
+
 Property Get LastError() As String
     LastError = m_sLastError
 End Property
@@ -669,6 +707,10 @@ EH:
     RaiseError FUNC_NAME
 End Property
 
+Property Get IsDaisy() As Boolean
+    IsDaisy = m_uConfig.IsDaisy
+End Property
+
 Private Property Get pvRowChars() As Long
     Const FUNC_NAME     As String = "pvRowChars"
     Dim bPrevExceptions As Boolean
@@ -676,16 +718,26 @@ Private Property Get pvRowChars() As Long
     Dim eCmd            As UcsIclCommandsEnum
     Dim sParam          As String
     Dim lIndex          As Long
+    Dim sResult         As String
     
     On Error GoTo EH
     If m_uConfig.RowChars = 0 Then
         pvGetCommandConfig FUNC_NAME, "InfoDaisyConsts", eCmd, ucsFpcInfoDaisyConsts, sParam, vbNullString, _
-            "Index", lIndex, 10, _
+            "Index", lIndex, 9, _
             "DaisyPrefix", sPrefix, "DY"
         If Left$(GetSerialNumber(), Len(sPrefix)) = sPrefix Then '--- daisy
             bPrevExceptions = pvSetExceptions(False)
-            m_uConfig.RowChars = At(Split(SendCommand(eCmd, sParam), DEF_DELIM), lIndex)
+            m_uConfig.RowChars = C_Lng(At(Split(SendCommand(eCmd, sParam), DEF_DELIM), lIndex))
             Exceptions = bPrevExceptions
+        Else
+            pvGetCommandConfig FUNC_NAME, "InitLogo", eCmd, ucsFpcInitLogo, sParam, "R0"
+            bPrevExceptions = pvSetExceptions(False)
+            sResult = SendCommand(eCmd, sParam)
+            Exceptions = bPrevExceptions
+            '--- check for paper width above 57mm (432px) e.g. 80mm paper is 576px wide
+            If Len(sResult) * 4 > 432 Then
+                m_uConfig.RowChars = Len(sResult) * 4 / 12 - 6
+            End If
         End If
         If m_uConfig.RowChars <= 0 Then
             m_uConfig.RowChars = DEF_COMMENT_LEN
@@ -695,6 +747,13 @@ Private Property Get pvRowChars() As Long
     Exit Property
 EH:
     RaiseError FUNC_NAME
+End Property
+
+Private Property Get pvItemChars() As Long
+    pvItemChars = m_uConfig.ItemChars
+    If pvItemChars = 0 Then
+        pvItemChars = LimitLong(pvRowChars - 5, , 30)
+    End If
 End Property
 
 '=========================================================================
@@ -824,12 +883,13 @@ Public Function Init( _
     Dim eCmd            As UcsIclCommandsEnum
     Dim sParam          As String
     Dim eHasSwitchesInfo As UcsTriState
+    Dim sDaisyPrefix    As String
     Dim lSerialIndex    As Long
     Dim lSwitchesIndex  As Long
     
     On Error GoTo EH
     DebugLog FUNC_NAME, "sDevice=" & sDevice & ", Timeout=" & Timeout
-    m_sLastError = vbNullString
+    pvSetLastError vbNullString
     If m_hComm <> INVALID_HANDLE_VALUE Then
         Call CloseHandle(m_hComm)
         m_hComm = INVALID_HANDLE_VALUE
@@ -845,6 +905,7 @@ Public Function Init( _
         GoTo QH
     End If
     pvGetCommandConfig FUNC_NAME, "InfoDiagnostics", eCmd, ucsFpcInfoDiagnostics, sParam, vbNullString, _
+        "DaisyPrefix", sDaisyPrefix, "DY", _
         "SerialIndex", lSerialIndex, 4, _
         "SwitchesIndex", lSwitchesIndex, 3
     m_vInfoDiagnostics = Split(pvSendCommand(m_hComm, m_lTimeout, eCmd, sParam, m_sLastError), DEF_DELIM)
@@ -862,9 +923,11 @@ Public Function Init( _
     With m_uConfig
         .Charset = ucsCrsAuto
         .IsEcr = ucsTri_Undefined
+        .IsDaisy = Left$(GetSerialNumber(), Len(sDaisyPrefix)) = sDaisyPrefix
         .AbsoluteDiscount = C_Bool(GetConfigValue(sSerial, "AbsoluteDiscount", eHasSwitchesInfo = ucsTriTrue))
         .NegativePrices = C_Bool(GetConfigValue(sSerial, "NegativePrices", eHasSwitchesInfo = ucsTriFalse))
         .RowChars = GetConfigNumber(sSerial, "RowChars", 0)
+        .ItemChars = GetConfigNumber(sSerial, "ItemChars", 0)
         .MaxReceiptRows = GetConfigNumber(sSerial, "MaxReceiptRows", DEF_MAX_RECEIPT_ROWS)
         .MinDiscount = GetConfigNumber(sSerial, "MinDiscount", DEF_MIN_DISCOUNT)
         .MaxDiscount = GetConfigNumber(sSerial, "MaxDiscount", DEF_MAX_DISCOUNT)
@@ -889,7 +952,7 @@ Public Function Connect() As Boolean
     
     On Error GoTo EH
     DebugLog FUNC_NAME, "m_hComm=" & m_hComm
-    m_sLastError = vbNullString
+    pvSetLastError vbNullString
     If m_hComm <> INVALID_HANDLE_VALUE Then
         pvSetLastError pvInternal(ucsErrAlreadyConnected)
         GoTo QH
@@ -912,7 +975,7 @@ Public Function Disconnect() As Boolean
     
     On Error GoTo EH
     DebugLog FUNC_NAME, "m_hComm=" & m_hComm & ", Status=" & Right$("000000" & Hex(m_eStatus), 6) & " " & Right$("00" & Hex(m_eDip), 2) & " " & Right$("0000" & Hex(m_eMemory), 4)
-    m_sLastError = vbNullString
+    pvSetLastError vbNullString
     If m_hComm = INVALID_HANDLE_VALUE Then
         pvSetLastError pvInternal(ucsErrNotConnected)
         GoTo QH
@@ -936,7 +999,10 @@ Public Function SendCommand(ByVal eCmd As UcsIclCommandsEnum, Optional Data As S
     Dim lDecimalsIndex  As Long
     
     On Error GoTo EH
-    m_sLastError = vbNullString
+    pvSetLastError vbNullString
+    If eCmd = ucsFpcNoop Then
+        Exit Function
+    End If
     '--- auto-sense encoding
     If m_uConfig.Charset = ucsCrsAuto Then
         pvGetCommandConfig FUNC_NAME, "InitDecimals", eDecimalsCmd, ucsFpcInitDecimals, sDecimalsParam, vbNullString, _
@@ -957,11 +1023,11 @@ Public Function SendCommand(ByVal eCmd As UcsIclCommandsEnum, Optional Data As S
         GoTo QH
     End If
     If Status(ucsStbPrintingError) Then
-        pvSetLastError ErrorText
+        pvSetLastError Zn(ErrorText, Printf(pvInternal(ucsErrUnknownError), "0x" & Hex(m_eStatus)))
         GoTo QH
     End If
     If Memory(ucsFmeMemoryError) Then
-        pvSetLastError MemoryText
+        pvSetLastError Zn(MemoryText, Printf(pvInternal(ucsErrUnknownMemory), "0x" & Hex(m_eMemory)))
         GoTo QH
     End If
 QH:
@@ -997,7 +1063,10 @@ Public Function StartReceipt( _
         .InitReceiptType = LimitLong(ReceiptType, 1, [_ucsFscRetMax] - 1)
         .InitOperatorCode = Zn(SafeText(OperatorCode), DEF_OPERNO)
         .InitOperatorName = SafeText(OperatorName)
-        .InitOperatorPassword = Zn(SafeText(OperatorPassword), DEF_PASSWORD)
+        .InitOperatorPassword = SafeText(OperatorPassword)
+        If LenB(.InitOperatorPassword) = 0 Then
+            .InitOperatorPassword = IDeviceProtocol_GetDefaultPassword(.InitOperatorCode)
+        End If
         .InitCashDeskNo = m_lCashDeskNo
         SplitCgAddress Trim$(SafeText(InvCity)) & vbCrLf & Trim$(SafeText(InvAddress)), sCity, sAddress, pvRowChars - 2
         .InitInvData = Array(SafeText(InvNumber), SafeText(InvTaxNumber), SafeText(InvVatNumber), _
@@ -1012,9 +1081,9 @@ End Function
 
 Public Function AddPLU( _
             Name As String, _
-            Price As Double, _
-            Optional Quantity As Double = 1, _
-            Optional VatGroup As Long = 2, _
+            ByVal Price As Double, _
+            Optional ByVal Quantity As Double = 1, _
+            Optional ByVal VatGroup As Long = 2, _
             Optional ByVal BeforeIndex As Long) As Boolean
     Const FUNC_NAME     As String = "AddPLU"
     Dim uRow            As UcsRowData
@@ -1074,7 +1143,7 @@ End Function
 
 Public Function AddDiscount( _
             ByVal DiscType As UcsFiscalDiscountTypeEnum, _
-            Value As Double, _
+            ByVal Value As Double, _
             Optional ByVal BeforeIndex As Long) As Boolean
     Const FUNC_NAME     As String = "AddDiscount"
     Dim uRow            As UcsRowData
@@ -1119,7 +1188,7 @@ End Function
 Public Function AddPayment( _
             ByVal Number As UcsFiscalPaymentTypeEnum, _
             Name As String, _
-            Amount As Double) As Boolean
+            ByVal Amount As Double) As Boolean
     Const FUNC_NAME     As String = "AddPayment"
     
     On Error GoTo EH
@@ -1127,6 +1196,10 @@ Public Function AddPayment( _
     If m_lRowCount = 0 Then
         pvSetLastError pvInternal(ucsErrNoReceiptStarted)
         GoTo QH
+    End If
+    If Number < 0 Then
+        '--- custom payment types: 5, 6, 7 & 8
+        Number = 4 - Number
     End If
     With m_uRow(pvAddRow())
         .RowType = ucsRowPayment
@@ -1274,9 +1347,17 @@ Public Function RunXReport(ByVal ReportType As UcsFiscalReportsTypeEnum) As Bool
     Case ucsFscRstDailyByItems
         pvGetCommandConfig FUNC_NAME, "PrintDailyReportItems", eCmd, ucsFpcPrintDailyReportItems, sParam, "2"
     Case ucsFscRstDailyByDepartment
-        pvGetCommandConfig FUNC_NAME, "PrintDailyReportDepartments", eCmd, ucsFpcPrintDailyReportDepartments, sParam, "2"
+        If Not IsDaisy Then
+            pvGetCommandConfig FUNC_NAME, "PrintDailyReportDepartments", eCmd, ucsFpcPrintDailyReportDepartments, sParam, "2"
+        Else
+            pvGetCommandConfig FUNC_NAME, "DaisyPrintDailyReport", eCmd, ucsFpcPrintDailyReport, sParam, "9"
+        End If
     Case ucsFscRstDailyByItemsAndDepartment
-        pvGetCommandConfig FUNC_NAME, "PrintDailyReportItemsDepartments", eCmd, ucsFpcPrintDailyReportItemsDepartments, sParam, "2"
+        If Not IsDaisy Then
+            pvGetCommandConfig FUNC_NAME, "PrintDailyReportItemsDepartments", eCmd, ucsFpcPrintDailyReportItemsDepartments, sParam, "2"
+        Else
+            pvGetCommandConfig FUNC_NAME, "DaisyPrintDailyReportItems", eCmd, ucsFpcPrintDailyReportItems, sParam, "9"
+        End If
     Case Else
         pvSetLastError pvInternal(ucsErrInvalidReportType)
         GoTo QH
@@ -1284,19 +1365,6 @@ Public Function RunXReport(ByVal ReportType As UcsFiscalReportsTypeEnum) As Bool
     bPrevExceptions = pvSetExceptions(False)
     SendCommand eCmd, sParam
     Exceptions = bPrevExceptions
-    If Status(ucsStbPrintingError) Then
-        '--- daisy: print by departaments
-        If ReportType = ucsFscRstDailyByDepartment Then
-            pvGetCommandConfig FUNC_NAME, "DaisyPrintDailyReport", eCmd, ucsFpcPrintDailyReport, sParam, "9"
-            SendCommand eCmd, sParam
-        ElseIf ReportType = ucsFscRstDailyByItemsAndDepartment Then
-            pvGetCommandConfig FUNC_NAME, "DaisyPrintDailyReportItems", eCmd, ucsFpcPrintDailyReportItems, sParam, "9"
-            SendCommand eCmd, sParam
-        Else
-            pvSetLastError m_sLastError
-            GoTo QH
-        End If
-    End If
     '--- success
     RunXReport = True
 QH:
@@ -1330,11 +1398,21 @@ Public Function RunZReport(ByVal ReportType As UcsFiscalReportsTypeEnum) As Bool
         pvGetCommandConfig FUNC_NAME, "PrintDailyReportItems", eCmd, ucsFpcPrintDailyReportItems, sParam, "0", _
             "EcClear", bEcClear, False
     Case ucsFscRstDailyByDepartment
-        pvGetCommandConfig FUNC_NAME, "PrintDailyReportDepartments", eCmd, ucsFpcPrintDailyReportDepartments, sParam, "0", _
-            "EcClear", bEcClear, False
+        If Not IsDaisy Then
+            pvGetCommandConfig FUNC_NAME, "PrintDailyReportDepartments", eCmd, ucsFpcPrintDailyReportDepartments, sParam, "0", _
+                "EcClear", bEcClear, False
+        Else
+            pvGetCommandConfig FUNC_NAME, "DaisyPrintDailyReport", eCmd, ucsFpcPrintDailyReport, sParam, "8", _
+                "EcClear", bEcClear, False
+        End If
     Case ucsFscRstDailyByItemsAndDepartment
-        pvGetCommandConfig FUNC_NAME, "PrintDailyReportItemsDepartments", eCmd, ucsFpcPrintDailyReportItemsDepartments, sParam, "0", _
-            "EcClear", bEcClear, False
+        If Not IsDaisy Then
+            pvGetCommandConfig FUNC_NAME, "PrintDailyReportItemsDepartments", eCmd, ucsFpcPrintDailyReportItemsDepartments, sParam, "0", _
+                "EcClear", bEcClear, False
+        Else
+            pvGetCommandConfig FUNC_NAME, "DaisyPrintDailyReportItems", eCmd, ucsFpcPrintDailyReportItems, sParam, "8", _
+                "EcClear", bEcClear, False
+        End If
     Case Else
         pvSetLastError pvInternal(ucsErrInvalidReportType)
         GoTo QH
@@ -1359,19 +1437,6 @@ Public Function RunZReport(ByVal ReportType As UcsFiscalReportsTypeEnum) As Bool
     End If
     SendCommand eCmd, sParam
     Exceptions = bPrevExceptions
-    If Status(ucsStbPrintingError) Then
-        '--- daisy: print by departments
-        If ReportType = ucsFscRstDailyByDepartment Then
-            pvGetCommandConfig FUNC_NAME, "DaisyPrintDailyReport", eCmd, ucsFpcPrintDailyReport, sParam, "8"
-            SendCommand eCmd, sParam
-        ElseIf ReportType = ucsFscRstDailyByItemsAndDepartment Then
-            pvGetCommandConfig FUNC_NAME, "DaisyPrintDailyReportItems", eCmd, ucsFpcPrintDailyReportItems, sParam, "8"
-            SendCommand eCmd, sParam
-        Else
-            pvSetLastError m_sLastError
-            GoTo QH
-        End If
-    End If
     '--- success
     RunZReport = True
 QH:
@@ -1551,14 +1616,22 @@ Public Function GetPaymentName(ByVal Index As Long) As String
     Dim sParam          As String
     
     On Error GoTo EH
+    If Index < 0 Then
+        '--- custom payment types: 5, 6, 7 & 8
+        Index = 4 - Index
+    End If
     If Index > 4 Then
-        pvGetCommandConfig FUNC_NAME, "InitPaymentType" & Index, eCmd, ucsFpcInitPaymentType, sParam, Chr$(68 + Index)
         bPrevExceptions = pvSetExceptions(False)
-        GetPaymentName = pvStripBold(SendCommand(eCmd, sParam))
-        Exceptions = bPrevExceptions
-        If Status(ucsStbPrintingError) Then
+        If Not IsDaisy Then
+            pvGetCommandConfig FUNC_NAME, "InitPaymentType" & Index, eCmd, ucsFpcInitPaymentType, sParam, Chr$(68 + Index)
+        Else
             pvGetCommandConfig FUNC_NAME, "InitDaisyText" & Index, eCmd, ucsFpcInitDaisyText, sParam, "R" & (56 + Index)
-            GetPaymentName = pvStripBold(SendCommand(eCmd, sParam))
+        End If
+        GetPaymentName = Trim$(pvStripBold(SendCommand(eCmd, sParam)))
+        Exceptions = bPrevExceptions
+        '--- check for failure (returns 'F')
+        If Status(ucsStbPrintingError) And GetPaymentName = "F" Then
+            GetPaymentName = vbNullString
         End If
     Else
         GetPaymentName = pvText(ucsTxtPaymentCash + Index - 1)
@@ -1658,9 +1731,9 @@ Public Function GetDeviceStatus(CurrentStatus As String) As Boolean
     If LenB(m_sLastError) <> 0 Then
         '--- do nothing
     ElseIf Status(ucsStbPrintingError) Then
-        m_sLastError = ErrorText
+        pvSetLastError Zn(ErrorText, Printf(pvInternal(ucsErrUnknownError), "0x" & Hex(m_eStatus)))
     ElseIf Memory(ucsFmeMemoryError) Then
-        m_sLastError = MemoryText
+        pvSetLastError Zn(MemoryText, Printf(pvInternal(ucsErrUnknownMemory), "0x" & Hex(m_eMemory)))
     End If
     CurrentStatus = m_sLastError
     '--- success
@@ -1671,33 +1744,118 @@ EH:
     RaiseError FUNC_NAME
 End Function
 
-Public Function GetTotalsByVatGroups() As Variant
-    Const FUNC_NAME     As String = "GetTotalsByVatGroups"
+Public Function GetTotalsByPayments() As Variant
+    Const FUNC_NAME     As String = "GetTotalsByPayments"
     Dim bPrevExceptions As Boolean
     Dim vSplit          As Variant
     Dim vRetVal         As Variant
     Dim lIdx            As Long
+    Dim lJdx            As Long
     Dim eCmd            As UcsIclCommandsEnum
     Dim sParam          As String
     
     On Error GoTo EH
-    pvGetCommandConfig FUNC_NAME, "InfoTotalsByVatGroups", eCmd, ucsFpcInfoTotalsByVatGroups, sParam, vbNullString
+    pvGetCommandConfig FUNC_NAME, "InfoTotalsByVatPayments", eCmd, ucsFpcInfoTotalsByPayments, sParam, vbNullString
     bPrevExceptions = pvSetExceptions(False)
     vSplit = Split(SendCommand(eCmd, sParam), DEF_DELIM)
     Exceptions = bPrevExceptions
     If UBound(vSplit) > 0 Then
         ReDim vRetVal(0 To 7) As Double
         For lIdx = 0 To UBound(vRetVal)
-            If InStr(At(vSplit, lIdx + 1), ".") > 0 Then
-                vRetVal(lIdx) = C_Dbl(Replace(At(vSplit, lIdx + 1), ".", g_sDecimalSeparator))
+            '--- WTF?!#@ happened w/ these indexes!
+            lJdx = At(Split("0|3|1|2", "|"), lIdx, C_Str(lIdx))
+            vRetVal(lJdx) = ParseSum(At(vSplit, lIdx))
+        Next
+        GetTotalsByPayments = vRetVal
+    Else
+        GetTotalsByPayments = EmptyVariantArray
+    End If
+    Exit Function
+EH:
+    RaiseError FUNC_NAME
+End Function
+
+Public Function GetTotalsByVatGroups() As Variant
+    Const FUNC_NAME     As String = "GetTotalsByVatGroups"
+    Dim bPrevExceptions As Boolean
+    Dim vTotals         As Variant
+    Dim vVatSums        As Variant
+    Dim vTaxRates       As Variant
+    Dim vRetVal         As Variant
+    Dim lIdx            As Long
+    Dim eCmd            As UcsIclCommandsEnum
+    Dim sParam          As String
+    
+    On Error GoTo EH
+    bPrevExceptions = pvSetExceptions(False)
+    pvGetCommandConfig FUNC_NAME, "InfoTotalsByVatGroups0", eCmd, ucsFpcInfoTotalsByVatGroups, sParam, vbNullString
+    vTotals = Split(SendCommand(eCmd, sParam), DEF_DELIM)
+    pvGetCommandConfig FUNC_NAME, "InfoTotalsByVatGroups1", eCmd, ucsFpcInfoTotalsByVatGroups, sParam, "1"
+    vVatSums = Split(SendCommand(eCmd, sParam), DEF_DELIM)
+    pvGetCommandConfig FUNC_NAME, "InfoTaxRates", eCmd, ucsFpcInfoTaxRates, sParam, vbNullString
+    vTaxRates = Split(Replace(SendCommand(eCmd, sParam), "%", vbNullString), DEF_DELIM)
+    Exceptions = bPrevExceptions
+    If UBound(vTotals) > 0 Or UBound(vVatSums) > 0 Then
+        ReDim vRetVal(0 To 7) As Variant
+        For lIdx = 0 To UBound(vRetVal)
+            If UBound(vVatSums) >= lIdx + 1 Then
+                vRetVal(lIdx) = Array(ParseSum(At(vTotals, lIdx + 1)), C_Dbl(At(vTaxRates, lIdx)), ParseSum(At(vVatSums, lIdx + 1)))
             Else
-                vRetVal(lIdx) = C_Dbl(At(vSplit, lIdx + 1)) / 100#
+                vRetVal(lIdx) = Array(ParseSum(At(vTotals, lIdx + 1)), C_Dbl(At(vTaxRates, lIdx)))
             End If
         Next
         GetTotalsByVatGroups = vRetVal
     Else
-        GetTotalsByVatGroups = EmptyDoubleArray
+        GetTotalsByVatGroups = EmptyVariantArray
     End If
+    Exit Function
+EH:
+    RaiseError FUNC_NAME
+End Function
+
+Public Function GetTotalsStats() As Variant
+    Const FUNC_NAME     As String = "GetTotalsStats"
+    Dim eCmd            As UcsIclCommandsEnum
+    Dim sParam          As String
+    Dim lIndex          As Long
+    Dim vSplit          As Variant
+    Dim lReceipts       As Long
+    Dim dLastDate       As Date
+    Dim bPrevExceptions As Boolean
+    Dim lIdx            As Long
+    
+    On Error GoTo EH
+    If Not IsEcr Then
+        pvGetCommandConfig FUNC_NAME, "InfoDailyStats", eCmd, ucsFpcInfoDailyStats, sParam, vbNullString, _
+            "Index", lIndex, 3
+        bPrevExceptions = pvSetExceptions(False)
+        vSplit = Split(SendCommand(eCmd, sParam), DEF_DELIM)
+        Exceptions = bPrevExceptions
+        If UBound(vSplit) >= lIndex Then
+            lReceipts = C_Lng(At(vSplit, lIndex))
+        Else
+            vSplit = Empty
+        End If
+    End If
+    If Not IsArray(vSplit) Then
+        pvGetCommandConfig FUNC_NAME, "InfoOperator", eCmd, ucsFpcInfoOperator, sParam, "%1", _
+            "Index", lIndex, 0
+        bPrevExceptions = pvSetExceptions(False)
+        lReceipts = 0
+        For lIdx = 1 To 100
+            vSplit = Split(SendCommand(eCmd, Printf(sParam, lIdx)), DEF_DELIM)
+            If Status(ucsStbPrintingError) Then
+                Exit For
+            End If
+            lReceipts = lReceipts + C_Lng(At(vSplit, lIndex))
+        Next
+        Exceptions = bPrevExceptions
+    End If
+    pvGetCommandConfig FUNC_NAME, "InfoLastFiscalDateTime", eCmd, ucsFpcInfoLastFiscalDateTime, sParam, "T"
+    bPrevExceptions = pvSetExceptions(False)
+    dLastDate = C_Date(SendCommand(eCmd, sParam))
+    Exceptions = bPrevExceptions
+    GetTotalsStats = Array(lReceipts, IIf(dLastDate = 0, Empty, dLastDate))
     Exit Function
 EH:
     RaiseError FUNC_NAME
@@ -1721,11 +1879,7 @@ Public Function CashDebitCredit(ByVal dblValue As Double) As Variant
     If UBound(vSplit) > 0 Then
         ReDim vRetVal(0 To 2) As Double
         For lIdx = 0 To UBound(vRetVal)
-            If InStr(At(vSplit, lIdx + 1), ".") > 0 Then
-                vRetVal(lIdx) = C_Dbl(Replace(At(vSplit, lIdx + 1), ".", g_sDecimalSeparator))
-            Else
-                vRetVal(lIdx) = C_Dbl(At(vSplit, lIdx + 1)) / 100#
-            End If
+            vRetVal(lIdx) = ParseSum(At(vSplit, lIdx + 1))
         Next
         CashDebitCredit = vRetVal
     Else
@@ -1801,7 +1955,7 @@ Private Function pvSendCommand( _
     Dim lActual         As Long
     
     On Error GoTo EH
-    DebugLog FUNC_NAME, "eCmd=" & eCmd & ", Data=" & Data
+    DebugLog FUNC_NAME, "eCmd=" & eCmd & IIf(LenB(Data) <> 0, ", Data=" & Data, vbNullString)
     uOver.hEvent = CreateEvent(0, 1, 0, 0)
     '--- prepare command and transcode cyrillic
     sText = pvTranscode(Data, True)
@@ -1846,7 +2000,7 @@ Private Function pvSendCommand( _
         If lResult = 0 Then
             If Err.LastDllError <> ERROR_IO_PENDING Then
                 DebugLog FUNC_NAME, "WaitCommEvent, Err.LastDllError=" & Err.LastDllError
-                Error = pvInternal(ucsErrWaitCommEventFailed) & GetApiErr(Err.LastDllError)
+                Error = Printf(pvInternal(ucsErrWaitCommEventFailed), GetApiErr(Err.LastDllError))
                 GoTo QH
             End If
             lResult = WaitForMultipleObjects(1, uOver.hEvent, 0, lTimeout)
@@ -1888,6 +2042,7 @@ InLoop:
             Call CancelIo(hComm)
             Exit Do
         End If
+RetryParse:
         '--- check if response complete (3 = Terminator)
         If Right$(sText, 1) = Chr$(3) Then
             If Left$(sText, 1) = Chr$(1) Then
@@ -1898,16 +2053,25 @@ InLoop:
                     If lIdx - 5 = lSize Then
                         pvSetStatus Mid$(sText, lIdx + 1, 6)
                         pvSendCommand = pvTranscode(Mid$(sText, 5, lSize), False)
-                        DebugLog FUNC_NAME, "RetVal=" & pvSendCommand & IIf(Status(ucsStbPrintingError), ", ErrorText=" & ErrorText, vbNullString) & IIf(Memory(ucsFmeMemoryError), ", MemoryText=" & ErrorText, vbNullString)
+                        DebugLog FUNC_NAME, "RetVal=" & pvSendCommand & _
+                            IIf(Status(ucsStbPrintingError), ", ErrorText=" & Zn(ErrorText, Printf(pvInternal(ucsErrUnknownError), "0x" & Hex(m_eStatus))), vbNullString) & _
+                            IIf(Memory(ucsFmeMemoryError), ", MemoryText=" & Zn(MemoryText, Printf(pvInternal(ucsErrUnknownMemory), "0x" & Hex(m_eMemory))), vbNullString)
                         GoTo QH
                     Else
-                        Error = pvInternal(ucsErrInvalidResponseLength)
+                        Error = Printf(pvInternal(ucsErrInvalidResponseLength), ToHexDump(sText))
                     End If
                 Else
-                    Error = pvInternal(ucsErrResponseMissingPostamble)
+                    Error = Printf(pvInternal(ucsErrResponseMissingPostamble), ToHexDump(sText))
                 End If
             Else
-                Error = pvInternal(ucsErrResponseMissingPreamble)
+                '--- check for GSM tax terminal interferences: "AT+CPIN?\r\n" or "AT+CIMI\r\n"
+                lIdx = InStr(sText, Chr$(1))
+                If lIdx > 1 Then
+                    DebugLog FUNC_NAME, "Trim bogus symbols, Prefix=" & ToHexDump(Left$(sText, lIdx - 1))
+                    sText = Mid$(sText, lIdx)
+                    GoTo RetryParse
+                End If
+                Error = Printf(pvInternal(ucsErrResponseMissingPreamble), ToHexDump(sText))
             End If
             pvSetStatus vbNullString '--- clear
             Exit Do
@@ -2169,7 +2333,7 @@ Private Function pvPrintReceipt(uCtx As UcsContext, uRow() As UcsRowData, ByVal 
                     "FormatPrice", sFormatPrice, "0.00", _
                     "FormatQty", sFormatQty, "0.000", _
                     "FormatDisc", sFormatDisc, "0.00"
-                vSplit = WrapText(.PluName, pvRowChars - 5)
+                vSplit = WrapText(.PluName, pvItemChars)
                 For lIdx = 0 To UBound(vSplit) - 2
                     pvPrintLine C_Str(vSplit(lIdx))
                 Next
@@ -2306,15 +2470,14 @@ Private Function pvPrintReceipt(uCtx As UcsContext, uRow() As UcsRowData, ByVal 
                 If .PmtType <> 0 Then
                     sType = Mid$("PDCNIJKL", .PmtType, 1)
                     If .PmtType > 4 Then
-                        pvGetCommandConfig FUNC_NAME, "InitPaymentType" & .PmtType, eCmd, ucsFpcInitPaymentType, sParam, sType & ",%1"
-                        sParam = Printf(sParam, Left$(.PmtName, m_uConfig.MaxPaymentLen))
                         bPrevExceptions = pvSetExceptions(False)
-                        SendCommand eCmd, sParam
-                        If Status(ucsStbPrintingError) Then
+                        If Not IsDaisy Then
+                            pvGetCommandConfig FUNC_NAME, "InitPaymentType" & .PmtType, eCmd, ucsFpcInitPaymentType, sParam, sType & ",%1"
+                        Else
                             pvGetCommandConfig FUNC_NAME, "InitDaisyText" & .PmtType, eCmd, ucsFpcInitDaisyText, sParam, "P" & (56 + .PmtType) & ",%1"
-                            sParam = Printf(sParam, Left$(.PmtName, m_uConfig.MaxPaymentLen))
-                            SendCommand eCmd, sParam
                         End If
+                        sParam = Printf(sParam, Left$(.PmtName, m_uConfig.MaxPaymentLen))
+                        SendCommand eCmd, sParam
                         Exceptions = bPrevExceptions
                     End If
                     pvGetCommandConfig FUNC_NAME, "FiscalPayment" & .PmtType, eCmd, ucsFpcFiscalPayment, sParam, vbTab & sType & "%1", _
@@ -2456,13 +2619,13 @@ Private Function pvPrintReceipt(uCtx As UcsContext, uRow() As UcsRowData, ByVal 
     pvPrintReceipt = True
     Exit Function
 EH:
-    m_sLastError = Err.Description
+    pvSetLastError Err.Description, DontRaise:=True
     PrintError FUNC_NAME
     If bInLogin Then
-        m_sLastError = m_sLastError & pvInternal(ucsErrInvalidOperatorPassword)
+        pvSetLastError m_sLastError & pvInternal(ucsErrInvalidOperatorPassword), ucsFerInvalidPassword, DontRaise:=True
     End If
     If uCtx.PluCount > 0 And Not uCtx.PmtPrinted Then
-        m_sLastError = Printf(pvInternal(ucsErrErrorInLine), uCtx.PluCount, m_sLastError)
+        pvSetLastError Printf(pvInternal(ucsErrErrorInLine), uCtx.PluCount, m_sLastError), m_eLastErrNumber, DontRaise:=True
     End If
     Err.Raise vbObjectError, , m_sLastError
 End Function
@@ -2492,7 +2655,7 @@ Private Sub pvConvertExtraRows()
                 dblTotal = Round(m_uRow(lRow).PluQuantity * dblPrice, 2)
                 dblDiscTotal = Round(dblTotal * m_uRow(lRow).DiscValue / 100#, 2)
                 If Not m_uConfig.NegativePrices And dblPrice <= 0 Then
-                    vSplit = WrapText(m_uRow(lRow).PluName, pvRowChars - 5)
+                    vSplit = WrapText(m_uRow(lRow).PluName, pvItemChars)
                     lIdx = LimitLong(UBound(vSplit), , 1)
                     vSplit(lIdx) = AlignText(vSplit(lIdx), SafeFormat(dblTotal + dblDiscTotal, "0.00"), pvRowChars)
                     m_uRow(lRow).RowType = ucsRowLine
@@ -2732,9 +2895,14 @@ Private Sub pvGetCommandConfig( _
     Next
 End Sub
 
-Private Sub pvSetLastError(sError As String)
+Private Sub pvSetLastError(sError As String, Optional ByVal ErrNum As UcsFiscalErrorsEnum = -1, Optional ByVal DontRaise As Boolean)
+    If ErrNum < 0 Then
+        m_eLastErrNumber = IIf(LenB(sError) = 0, ucsFerNone, ucsFerGeneralError)
+    Else
+        m_eLastErrNumber = ErrNum
+    End If
     m_sLastError = sError
-    If Exceptions Then
+    If Exceptions And LenB(sError) <> 0 And Not DontRaise Then
         Err.Raise vbObjectError, , m_sLastError
     End If
 End Sub
@@ -2767,7 +2935,7 @@ End Sub
 ' IDeviceProtocol interface
 '=========================================================================
 
-Private Function IDeviceProtocol_AddDiscount(ByVal DiscType As UcsFiscalDiscountTypeEnum, Value As Double) As Boolean
+Private Function IDeviceProtocol_AddDiscount(ByVal DiscType As UcsFiscalDiscountTypeEnum, ByVal Value As Double) As Boolean
     IDeviceProtocol_AddDiscount = AddDiscount(DiscType, Value)
 End Function
 
@@ -2775,11 +2943,11 @@ Private Function IDeviceProtocol_AddLine(Line As String, Optional Command As Str
     IDeviceProtocol_AddLine = AddLine(Line, WordWrap)
 End Function
 
-Private Function IDeviceProtocol_AddPayment(ByVal Number As UcsFiscalPaymentTypeEnum, Name As String, Amount As Double, Optional Rate As Double) As Boolean
+Private Function IDeviceProtocol_AddPayment(ByVal Number As UcsFiscalPaymentTypeEnum, Name As String, ByVal Amount As Double, Optional ByVal Rate As Double) As Boolean
     IDeviceProtocol_AddPayment = AddPayment(Number, Name, Amount)
 End Function
 
-Private Function IDeviceProtocol_AddPLU(Name As String, Price As Double, Quantity As Double, VatGroup As Long) As Boolean
+Private Function IDeviceProtocol_AddPLU(Name As String, ByVal Price As Double, ByVal Quantity As Double, ByVal VatGroup As Long) As Boolean
     IDeviceProtocol_AddPLU = AddPLU(Name, Price, Quantity, VatGroup)
 End Function
 
@@ -2824,7 +2992,7 @@ Private Function IDeviceProtocol_GetCommandLog() As String
 End Function
 
 Private Function IDeviceProtocol_GetDefaultPassword(OperatorCode As String) As String
-    If IsEcr Then
+    If IsEcr Or IsDaisy Then
         IDeviceProtocol_GetDefaultPassword = OperatorCode
     Else
         IDeviceProtocol_GetDefaultPassword = DEF_PASSWORD
@@ -2859,7 +3027,8 @@ Private Function IDeviceProtocol_GetLastReceiptNumber() As String
     IDeviceProtocol_GetLastReceiptNumber = GetLastReceiptNumber()
 End Function
 
-Private Function IDeviceProtocol_GetLastError() As String
+Private Function IDeviceProtocol_GetLastError(Optional ErrNumber As UcsFiscalErrorsEnum) As String
+    ErrNumber = LastErrNumber
     IDeviceProtocol_GetLastError = LastError
 End Function
 
@@ -2887,8 +3056,16 @@ Private Function IDeviceProtocol_GetTaxNumber() As String
     IDeviceProtocol_GetTaxNumber = GetTaxNumber()
 End Function
 
+Private Function IDeviceProtocol_GetTotalsByPayments() As Variant
+    IDeviceProtocol_GetTotalsByPayments = GetTotalsByPayments()
+End Function
+
 Private Function IDeviceProtocol_GetTotalsByVatGroups() As Variant
     IDeviceProtocol_GetTotalsByVatGroups = GetTotalsByVatGroups()
+End Function
+
+Private Function IDeviceProtocol_GetTotalsStats() As Variant
+    IDeviceProtocol_GetTotalsStats = GetTotalsStats()
 End Function
 
 Private Function IDeviceProtocol_Init(Device As String, Optional ByVal Timeout As Long, Optional ByVal CashDeskNo As Long) As Boolean
