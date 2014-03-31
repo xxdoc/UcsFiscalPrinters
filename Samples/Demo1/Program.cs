@@ -1,4 +1,5 @@
-﻿using UcsFiscalPrinters;
+﻿using System.Globalization;
+using UcsFiscalPrinters;
 
 namespace Demo1
 {
@@ -6,12 +7,33 @@ namespace Demo1
     {
         static void Main(string[] args)
         {
-            IDeviceProtocol fp = (IDeviceProtocol)new cZekaProtocol();
-            fp.Init("COM1");
-            fp.StartReceipt(UcsFiscalReceiptTypeEnum.ucsFscRetFiscal, "1", "Operator", "0");
+            // cast to printer independent IDeviceProtocol interface
+            var fp = (IDeviceProtocol)new cICLProtocol();
+
+            // format of device string: port[,speed][,data,parity,stop]
+            fp.Init("COM3,9600");
+
+            // setup localized commands for Serbia
+            if (CultureInfo.CurrentCulture.Name.Substring(0, 5) == "sr-SP")
+            {
+                var prot = (cICLProtocol)fp;
+                // command parameters use ';' for first separator. apparently Datecs made this protocol 
+                //   incompatibiliy for Serbia on purpose to prevent interoperability with BG software.
+                prot.SetLocalizedCommand("pvPrintReceipt", "FiscalOpen2", Param: "%1;%2,%3");
+                prot.SetLocalizedCommand("pvPrintReceipt", "FiscalOpen3", Param: "%1;%2,%3");
+            }
+
+            // queue new fiscal reciept
+            fp.StartReceipt(UcsFiscalReceiptTypeEnum.ucsFscRetFiscal, "1", "Operator 1", "0000");
+
+            // queue sale of 5 items of "Product 1" for 1.23 each in second VAT group (20%)
             fp.AddPLU("Product 1", 1.23, 5, 2);
-            fp.AddPayment(UcsFiscalPaymentTypeEnum.ucsFscPmtCash, "Cash", 5);
-            fp.EndReceipt();
+
+            // queue payment of 10.00 in cash
+            fp.AddPayment(UcsFiscalPaymentTypeEnum.ucsFscPmtCash, "Cash", 10.0);
+
+            // print all queue in transaction here
+            fp.EndReceipt(null);
         }
     }
 }

@@ -45,169 +45,185 @@
   <Registry Id="UcsFP10.46" Root="HKCR" Key="CLSID\{FA537561-3159-49F9-93CD-27731E6AFA30}\Programmable" />
   <Registry Id="UcsFP10.47" Root="HKCR" Key="CLSID\{FA537561-3159-49F9-93CD-27731E6AFA30}\TypeLib" Value="{5A99FB21-D0A2-410E-BBE5-C2B9A26108B2}" Type="string" />
   <Registry Id="UcsFP10.48" Root="HKCR" Key="CLSID\{FA537561-3159-49F9-93CD-27731E6AFA30}\VERSION" Value="30.1" Type="string" />
-  <Registry Id="UcsFP10.49" Root="HKCR" Key="Interface\{14E469E0-BF61-11CF-8385-8F69D8F1350B}" Value="AsyncProperty_VB5" Type="string" />
-  <Registry Id="UcsFP10.50" Root="HKCR" Key="Interface\{14E469E0-BF61-11CF-8385-8F69D8F1350B}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.51" Root="HKCR" Key="Interface\{14E469E0-BF61-11CF-8385-8F69D8F1350B}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.53" Root="HKCR" Key="Interface\{14E469E0-BF61-11CF-8385-8F69D8F1350B}\TypeLib" Name="Version" Value="6.0" Type="string" />
-  <Registry Id="UcsFP10.54" Root="HKCR" Key="Interface\{203F21B3-2A07-4B97-8EA2-65194F4729C9}" Value="IDeviceProtocol" Type="string" />
-  <Registry Id="UcsFP10.55" Root="HKCR" Key="Interface\{203F21B3-2A07-4B97-8EA2-65194F4729C9}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.56" Root="HKCR" Key="Interface\{203F21B3-2A07-4B97-8EA2-65194F4729C9}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.57" Root="HKCR" Key="Interface\{203F21B3-2A07-4B97-8EA2-65194F4729C9}\TypeLib" Value="{5A99FB21-D0A2-410E-BBE5-C2B9A26108B2}" Type="string" />
-  <Registry Id="UcsFP10.58" Root="HKCR" Key="Interface\{203F21B3-2A07-4B97-8EA2-65194F4729C9}\TypeLib" Name="Version" Value="1e.1" Type="string" />
-  <Registry Id="UcsFP10.59" Root="HKCR" Key="Interface\{2CE46480-1A08-11CF-AD63-00AA00614F3E}" Value="SelectedControls" Type="string" />
-  <Registry Id="UcsFP10.60" Root="HKCR" Key="Interface\{2CE46480-1A08-11CF-AD63-00AA00614F3E}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.61" Root="HKCR" Key="Interface\{2CE46480-1A08-11CF-AD63-00AA00614F3E}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.63" Root="HKCR" Key="Interface\{2CE46480-1A08-11CF-AD63-00AA00614F3E}\TypeLib" Name="Version" Value="6.0" Type="string" />
-  <Registry Id="UcsFP10.64" Root="HKCR" Key="Interface\{41A7D760-6018-11CF-9016-00AA0068841E}" Value="DataObject" Type="string" />
-  <Registry Id="UcsFP10.65" Root="HKCR" Key="Interface\{41A7D760-6018-11CF-9016-00AA0068841E}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.66" Root="HKCR" Key="Interface\{41A7D760-6018-11CF-9016-00AA0068841E}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.68" Root="HKCR" Key="Interface\{41A7D760-6018-11CF-9016-00AA0068841E}\TypeLib" Name="Version" Value="6.0" Type="string" />
-  <Registry Id="UcsFP10.69" Root="HKCR" Key="Interface\{41A7D761-6018-11CF-9016-00AA0068841E}" Value="DataObjectFiles" Type="string" />
-  <Registry Id="UcsFP10.70" Root="HKCR" Key="Interface\{41A7D761-6018-11CF-9016-00AA0068841E}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.71" Root="HKCR" Key="Interface\{41A7D761-6018-11CF-9016-00AA0068841E}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.73" Root="HKCR" Key="Interface\{41A7D761-6018-11CF-9016-00AA0068841E}\TypeLib" Name="Version" Value="6.0" Type="string" />
-  <Registry Id="UcsFP10.74" Root="HKCR" Key="Interface\{4495AD01-C993-11D1-A3E4-00A0C90AEA82}" Value="_PropertyBag" Type="string" />
-  <Registry Id="UcsFP10.75" Root="HKCR" Key="Interface\{4495AD01-C993-11D1-A3E4-00A0C90AEA82}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.76" Root="HKCR" Key="Interface\{4495AD01-C993-11D1-A3E4-00A0C90AEA82}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.78" Root="HKCR" Key="Interface\{4495AD01-C993-11D1-A3E4-00A0C90AEA82}\TypeLib" Name="Version" Value="6.0" Type="string" />
-  <Registry Id="UcsFP10.79" Root="HKCR" Key="Interface\{45046D60-08CA-11CF-A90F-00AA0062BB4C}" Value="PropertyBag_VB5" Type="string" />
-  <Registry Id="UcsFP10.80" Root="HKCR" Key="Interface\{45046D60-08CA-11CF-A90F-00AA0062BB4C}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.81" Root="HKCR" Key="Interface\{45046D60-08CA-11CF-A90F-00AA0062BB4C}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.83" Root="HKCR" Key="Interface\{45046D60-08CA-11CF-A90F-00AA0062BB4C}\TypeLib" Name="Version" Value="6.0" Type="string" />
-  <Registry Id="UcsFP10.84" Root="HKCR" Key="Interface\{5465AE1A-8EFB-4AD8-BBBE-6938A7BD92E0}" Value="cEltradeProtocol" Type="string" />
-  <Registry Id="UcsFP10.85" Root="HKCR" Key="Interface\{5465AE1A-8EFB-4AD8-BBBE-6938A7BD92E0}\ProxyStubClsid" Value="{00020420-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.86" Root="HKCR" Key="Interface\{5465AE1A-8EFB-4AD8-BBBE-6938A7BD92E0}\ProxyStubClsid32" Value="{00020420-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.87" Root="HKCR" Key="Interface\{5465AE1A-8EFB-4AD8-BBBE-6938A7BD92E0}\TypeLib" Value="{5A99FB21-D0A2-410E-BBE5-C2B9A26108B2}" Type="string" />
-  <Registry Id="UcsFP10.88" Root="HKCR" Key="Interface\{5465AE1A-8EFB-4AD8-BBBE-6938A7BD92E0}\TypeLib" Name="Version" Value="1e.1" Type="string" />
-  <Registry Id="UcsFP10.89" Root="HKCR" Key="Interface\{647B43DB-BE8E-4EE3-8EA3-C1AF087F9660}" Value="cFiscalAdmin" Type="string" />
-  <Registry Id="UcsFP10.90" Root="HKCR" Key="Interface\{647B43DB-BE8E-4EE3-8EA3-C1AF087F9660}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.91" Root="HKCR" Key="Interface\{647B43DB-BE8E-4EE3-8EA3-C1AF087F9660}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.92" Root="HKCR" Key="Interface\{647B43DB-BE8E-4EE3-8EA3-C1AF087F9660}\TypeLib" Value="{5A99FB21-D0A2-410E-BBE5-C2B9A26108B2}" Type="string" />
-  <Registry Id="UcsFP10.93" Root="HKCR" Key="Interface\{647B43DB-BE8E-4EE3-8EA3-C1AF087F9660}\TypeLib" Name="Version" Value="1e.1" Type="string" />
-  <Registry Id="UcsFP10.94" Root="HKCR" Key="Interface\{737361EC-467F-11D1-810F-0000F87557AA}" Value="Licenses" Type="string" />
-  <Registry Id="UcsFP10.95" Root="HKCR" Key="Interface\{737361EC-467F-11D1-810F-0000F87557AA}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.96" Root="HKCR" Key="Interface\{737361EC-467F-11D1-810F-0000F87557AA}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.98" Root="HKCR" Key="Interface\{737361EC-467F-11D1-810F-0000F87557AA}\TypeLib" Name="Version" Value="6.0" Type="string" />
-  <Registry Id="UcsFP10.99" Root="HKCR" Key="Interface\{7500A6BA-EB65-11D1-938D-0000F87557C9}" Value="DataBinding" Type="string" />
-  <Registry Id="UcsFP10.100" Root="HKCR" Key="Interface\{7500A6BA-EB65-11D1-938D-0000F87557C9}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.101" Root="HKCR" Key="Interface\{7500A6BA-EB65-11D1-938D-0000F87557C9}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.103" Root="HKCR" Key="Interface\{7500A6BA-EB65-11D1-938D-0000F87557C9}\TypeLib" Name="Version" Value="6.0" Type="string" />
-  <Registry Id="UcsFP10.104" Root="HKCR" Key="Interface\{8284B8A2-A8A8-11D1-A3D2-00A0C90AEA82}" Value="LicenseInfo" Type="string" />
-  <Registry Id="UcsFP10.105" Root="HKCR" Key="Interface\{8284B8A2-A8A8-11D1-A3D2-00A0C90AEA82}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.106" Root="HKCR" Key="Interface\{8284B8A2-A8A8-11D1-A3D2-00A0C90AEA82}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.108" Root="HKCR" Key="Interface\{8284B8A2-A8A8-11D1-A3D2-00A0C90AEA82}\TypeLib" Name="Version" Value="6.0" Type="string" />
-  <Registry Id="UcsFP10.109" Root="HKCR" Key="Interface\{83C49FF0-B294-11D0-9488-00A0C91110ED}" Value="DataMembers" Type="string" />
-  <Registry Id="UcsFP10.110" Root="HKCR" Key="Interface\{83C49FF0-B294-11D0-9488-00A0C91110ED}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.111" Root="HKCR" Key="Interface\{83C49FF0-B294-11D0-9488-00A0C91110ED}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.113" Root="HKCR" Key="Interface\{83C49FF0-B294-11D0-9488-00A0C91110ED}\TypeLib" Name="Version" Value="6.0" Type="string" />
-  <Registry Id="UcsFP10.114" Root="HKCR" Key="Interface\{888A5A60-B283-11CF-8AD5-00A0C90AEA82}" Value="Hyperlink" Type="string" />
-  <Registry Id="UcsFP10.115" Root="HKCR" Key="Interface\{888A5A60-B283-11CF-8AD5-00A0C90AEA82}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.116" Root="HKCR" Key="Interface\{888A5A60-B283-11CF-8AD5-00A0C90AEA82}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.118" Root="HKCR" Key="Interface\{888A5A60-B283-11CF-8AD5-00A0C90AEA82}\TypeLib" Name="Version" Value="6.0" Type="string" />
-  <Registry Id="UcsFP10.119" Root="HKCR" Key="Interface\{8B358818-8441-4F7E-886B-3718223F0CFC}" Value="cFiscalPrinter" Type="string" />
-  <Registry Id="UcsFP10.120" Root="HKCR" Key="Interface\{8B358818-8441-4F7E-886B-3718223F0CFC}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.121" Root="HKCR" Key="Interface\{8B358818-8441-4F7E-886B-3718223F0CFC}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.122" Root="HKCR" Key="Interface\{8B358818-8441-4F7E-886B-3718223F0CFC}\TypeLib" Value="{5A99FB21-D0A2-410E-BBE5-C2B9A26108B2}" Type="string" />
-  <Registry Id="UcsFP10.123" Root="HKCR" Key="Interface\{8B358818-8441-4F7E-886B-3718223F0CFC}\TypeLib" Name="Version" Value="1e.1" Type="string" />
-  <Registry Id="UcsFP10.124" Root="HKCR" Key="Interface\{907125DC-7EDA-4E41-8D51-89D516B69AE1}" Value="cZekaProtocol" Type="string" />
-  <Registry Id="UcsFP10.125" Root="HKCR" Key="Interface\{907125DC-7EDA-4E41-8D51-89D516B69AE1}\ProxyStubClsid" Value="{00020420-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.126" Root="HKCR" Key="Interface\{907125DC-7EDA-4E41-8D51-89D516B69AE1}\ProxyStubClsid32" Value="{00020420-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.127" Root="HKCR" Key="Interface\{907125DC-7EDA-4E41-8D51-89D516B69AE1}\TypeLib" Value="{5A99FB21-D0A2-410E-BBE5-C2B9A26108B2}" Type="string" />
-  <Registry Id="UcsFP10.128" Root="HKCR" Key="Interface\{907125DC-7EDA-4E41-8D51-89D516B69AE1}\TypeLib" Name="Version" Value="1e.1" Type="string" />
-  <Registry Id="UcsFP10.129" Root="HKCR" Key="Interface\{9F9F6A53-8C1B-4516-A2AD-57C1D1E644E1}" Value="cICLProtocol" Type="string" />
-  <Registry Id="UcsFP10.130" Root="HKCR" Key="Interface\{9F9F6A53-8C1B-4516-A2AD-57C1D1E644E1}\ProxyStubClsid" Value="{00020420-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.131" Root="HKCR" Key="Interface\{9F9F6A53-8C1B-4516-A2AD-57C1D1E644E1}\ProxyStubClsid32" Value="{00020420-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.132" Root="HKCR" Key="Interface\{9F9F6A53-8C1B-4516-A2AD-57C1D1E644E1}\TypeLib" Value="{5A99FB21-D0A2-410E-BBE5-C2B9A26108B2}" Type="string" />
-  <Registry Id="UcsFP10.133" Root="HKCR" Key="Interface\{9F9F6A53-8C1B-4516-A2AD-57C1D1E644E1}\TypeLib" Name="Version" Value="1e.1" Type="string" />
-  <Registry Id="UcsFP10.144" Root="HKCR" Key="Interface\{B28FA150-0FF0-11CF-A911-00AA0062BB4C}" Value="AmbientProperties" Type="string" />
-  <Registry Id="UcsFP10.145" Root="HKCR" Key="Interface\{B28FA150-0FF0-11CF-A911-00AA0062BB4C}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.146" Root="HKCR" Key="Interface\{B28FA150-0FF0-11CF-A911-00AA0062BB4C}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.148" Root="HKCR" Key="Interface\{B28FA150-0FF0-11CF-A911-00AA0062BB4C}\TypeLib" Name="Version" Value="6.0" Type="string" />
-  <Registry Id="UcsFP10.149" Root="HKCR" Key="Interface\{BE8F9800-2AAA-11CF-AD67-00AA00614F3E}" Value="ParentControls" Type="string" />
-  <Registry Id="UcsFP10.150" Root="HKCR" Key="Interface\{BE8F9800-2AAA-11CF-AD67-00AA00614F3E}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.151" Root="HKCR" Key="Interface\{BE8F9800-2AAA-11CF-AD67-00AA00614F3E}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.153" Root="HKCR" Key="Interface\{BE8F9800-2AAA-11CF-AD67-00AA00614F3E}\TypeLib" Name="Version" Value="6.0" Type="string" />
-  <Registry Id="UcsFP10.154" Root="HKCR" Key="Interface\{C0324960-2AAA-11CF-AD67-00AA00614F3E}" Value="ContainedControls" Type="string" />
-  <Registry Id="UcsFP10.155" Root="HKCR" Key="Interface\{C0324960-2AAA-11CF-AD67-00AA00614F3E}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.156" Root="HKCR" Key="Interface\{C0324960-2AAA-11CF-AD67-00AA00614F3E}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.158" Root="HKCR" Key="Interface\{C0324960-2AAA-11CF-AD67-00AA00614F3E}\TypeLib" Name="Version" Value="6.0" Type="string" />
-  <Registry Id="UcsFP10.159" Root="HKCR" Key="Interface\{C4D651F0-7697-11D1-A1E9-00A0C90F2731}" Value="EventParameter" Type="string" />
-  <Registry Id="UcsFP10.160" Root="HKCR" Key="Interface\{C4D651F0-7697-11D1-A1E9-00A0C90F2731}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.161" Root="HKCR" Key="Interface\{C4D651F0-7697-11D1-A1E9-00A0C90F2731}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.163" Root="HKCR" Key="Interface\{C4D651F0-7697-11D1-A1E9-00A0C90F2731}\TypeLib" Name="Version" Value="6.0" Type="string" />
-  <Registry Id="UcsFP10.164" Root="HKCR" Key="Interface\{C4D651F1-7697-11D1-A1E9-00A0C90F2731}" Value="EventParameters" Type="string" />
-  <Registry Id="UcsFP10.165" Root="HKCR" Key="Interface\{C4D651F1-7697-11D1-A1E9-00A0C90F2731}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.166" Root="HKCR" Key="Interface\{C4D651F1-7697-11D1-A1E9-00A0C90F2731}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.168" Root="HKCR" Key="Interface\{C4D651F1-7697-11D1-A1E9-00A0C90F2731}\TypeLib" Name="Version" Value="6.0" Type="string" />
-  <Registry Id="UcsFP10.169" Root="HKCR" Key="Interface\{C4D651F2-7697-11D1-A1E9-00A0C90F2731}" Value="EventInfo" Type="string" />
-  <Registry Id="UcsFP10.170" Root="HKCR" Key="Interface\{C4D651F2-7697-11D1-A1E9-00A0C90F2731}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.171" Root="HKCR" Key="Interface\{C4D651F2-7697-11D1-A1E9-00A0C90F2731}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.173" Root="HKCR" Key="Interface\{C4D651F2-7697-11D1-A1E9-00A0C90F2731}\TypeLib" Name="Version" Value="6.0" Type="string" />
-  <Registry Id="UcsFP10.174" Root="HKCR" Key="Interface\{CBB76011-C508-11D1-A3E3-00A0C90AEA82}" Value="AsyncProperty" Type="string" />
-  <Registry Id="UcsFP10.175" Root="HKCR" Key="Interface\{CBB76011-C508-11D1-A3E3-00A0C90AEA82}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.176" Root="HKCR" Key="Interface\{CBB76011-C508-11D1-A3E3-00A0C90AEA82}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.178" Root="HKCR" Key="Interface\{CBB76011-C508-11D1-A3E3-00A0C90AEA82}\TypeLib" Name="Version" Value="6.0" Type="string" />
-  <Registry Id="UcsFP10.179" Root="HKCR" Key="Interface\{D4E0F020-720A-11CF-8136-00AA00C14959}" Value="DataBindings" Type="string" />
-  <Registry Id="UcsFP10.180" Root="HKCR" Key="Interface\{D4E0F020-720A-11CF-8136-00AA00C14959}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.181" Root="HKCR" Key="Interface\{D4E0F020-720A-11CF-8136-00AA00C14959}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.183" Root="HKCR" Key="Interface\{D4E0F020-720A-11CF-8136-00AA00C14959}\TypeLib" Name="Version" Value="6.0" Type="string" />
-  <Registry Id="UcsFP10.184" Root="HKCR" Key="Interface\{D689EDF0-45F6-449B-8F3A-136A2E72E044}" Value="cEltradeProtocol" Type="string" />
-  <Registry Id="UcsFP10.185" Root="HKCR" Key="Interface\{D689EDF0-45F6-449B-8F3A-136A2E72E044}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.186" Root="HKCR" Key="Interface\{D689EDF0-45F6-449B-8F3A-136A2E72E044}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.187" Root="HKCR" Key="Interface\{D689EDF0-45F6-449B-8F3A-136A2E72E044}\TypeLib" Value="{5A99FB21-D0A2-410E-BBE5-C2B9A26108B2}" Type="string" />
-  <Registry Id="UcsFP10.188" Root="HKCR" Key="Interface\{D689EDF0-45F6-449B-8F3A-136A2E72E044}\TypeLib" Name="Version" Value="1e.1" Type="string" />
-  <Registry Id="UcsFP10.189" Root="HKCR" Key="Interface\{E43FD401-8715-11D1-98E7-00A0C9702442}" Value="IVbeRuntimeHost" Type="string" />
-  <Registry Id="UcsFP10.190" Root="HKCR" Key="Interface\{E43FD401-8715-11D1-98E7-00A0C9702442}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.191" Root="HKCR" Key="Interface\{E43FD401-8715-11D1-98E7-00A0C9702442}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.193" Root="HKCR" Key="Interface\{E43FD401-8715-11D1-98E7-00A0C9702442}\TypeLib" Name="Version" Value="6.0" Type="string" />
-  <Registry Id="UcsFP10.194" Root="HKCR" Key="Interface\{EB41E8C1-4442-11D1-8906-00A0C9110049}" Value="_DDataBoundClass" Type="string" />
-  <Registry Id="UcsFP10.195" Root="HKCR" Key="Interface\{EB41E8C1-4442-11D1-8906-00A0C9110049}\ProxyStubClsid" Value="{00020420-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.196" Root="HKCR" Key="Interface\{EB41E8C1-4442-11D1-8906-00A0C9110049}\ProxyStubClsid32" Value="{00020420-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.198" Root="HKCR" Key="Interface\{EB41E8C1-4442-11D1-8906-00A0C9110049}\TypeLib" Name="Version" Value="6.0" Type="string" />
-  <Registry Id="UcsFP10.199" Root="HKCR" Key="Interface\{EB41E8C2-4442-11D1-8906-00A0C9110049}" Value="_DDataSourceClass" Type="string" />
-  <Registry Id="UcsFP10.200" Root="HKCR" Key="Interface\{EB41E8C2-4442-11D1-8906-00A0C9110049}\ProxyStubClsid" Value="{00020420-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.201" Root="HKCR" Key="Interface\{EB41E8C2-4442-11D1-8906-00A0C9110049}\ProxyStubClsid32" Value="{00020420-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.203" Root="HKCR" Key="Interface\{EB41E8C2-4442-11D1-8906-00A0C9110049}\TypeLib" Name="Version" Value="6.0" Type="string" />
-  <Registry Id="UcsFP10.204" Root="HKCR" Key="Interface\{EB41E8C3-4442-11D1-8906-00A0C9110049}" Value="_DDataBoundAndDataSourceClass" Type="string" />
-  <Registry Id="UcsFP10.205" Root="HKCR" Key="Interface\{EB41E8C3-4442-11D1-8906-00A0C9110049}\ProxyStubClsid" Value="{00020420-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.206" Root="HKCR" Key="Interface\{EB41E8C3-4442-11D1-8906-00A0C9110049}\ProxyStubClsid32" Value="{00020420-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.208" Root="HKCR" Key="Interface\{EB41E8C3-4442-11D1-8906-00A0C9110049}\TypeLib" Name="Version" Value="6.0" Type="string" />
-  <Registry Id="UcsFP10.209" Root="HKCR" Key="Interface\{EB41E8C4-4442-11D1-8906-00A0C9110049}" Value="_DPersistableClass" Type="string" />
-  <Registry Id="UcsFP10.210" Root="HKCR" Key="Interface\{EB41E8C4-4442-11D1-8906-00A0C9110049}\ProxyStubClsid" Value="{00020420-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.211" Root="HKCR" Key="Interface\{EB41E8C4-4442-11D1-8906-00A0C9110049}\ProxyStubClsid32" Value="{00020420-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.213" Root="HKCR" Key="Interface\{EB41E8C4-4442-11D1-8906-00A0C9110049}\TypeLib" Name="Version" Value="6.0" Type="string" />
-  <Registry Id="UcsFP10.214" Root="HKCR" Key="Interface\{EB41E8C5-4442-11D1-8906-00A0C9110049}" Value="_DPersistableDataSourceClass" Type="string" />
-  <Registry Id="UcsFP10.215" Root="HKCR" Key="Interface\{EB41E8C5-4442-11D1-8906-00A0C9110049}\ProxyStubClsid" Value="{00020420-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.216" Root="HKCR" Key="Interface\{EB41E8C5-4442-11D1-8906-00A0C9110049}\ProxyStubClsid32" Value="{00020420-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.218" Root="HKCR" Key="Interface\{EB41E8C5-4442-11D1-8906-00A0C9110049}\TypeLib" Name="Version" Value="6.0" Type="string" />
-  <Registry Id="UcsFP10.219" Root="HKCR" Key="Interface\{EBB99793-2AB1-41FE-A927-394676153EB1}" Value="cICLProtocol" Type="string" />
-  <Registry Id="UcsFP10.220" Root="HKCR" Key="Interface\{EBB99793-2AB1-41FE-A927-394676153EB1}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.221" Root="HKCR" Key="Interface\{EBB99793-2AB1-41FE-A927-394676153EB1}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.222" Root="HKCR" Key="Interface\{EBB99793-2AB1-41FE-A927-394676153EB1}\TypeLib" Value="{5A99FB21-D0A2-410E-BBE5-C2B9A26108B2}" Type="string" />
-  <Registry Id="UcsFP10.223" Root="HKCR" Key="Interface\{EBB99793-2AB1-41FE-A927-394676153EB1}\TypeLib" Name="Version" Value="1e.1" Type="string" />
-  <Registry Id="UcsFP10.224" Root="HKCR" Key="Interface\{F1BBE0DF-3CB8-4A3C-BD0A-1461EE6A83AC}" Value="cZekaProtocol" Type="string" />
-  <Registry Id="UcsFP10.225" Root="HKCR" Key="Interface\{F1BBE0DF-3CB8-4A3C-BD0A-1461EE6A83AC}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.226" Root="HKCR" Key="Interface\{F1BBE0DF-3CB8-4A3C-BD0A-1461EE6A83AC}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.227" Root="HKCR" Key="Interface\{F1BBE0DF-3CB8-4A3C-BD0A-1461EE6A83AC}\TypeLib" Value="{5A99FB21-D0A2-410E-BBE5-C2B9A26108B2}" Type="string" />
-  <Registry Id="UcsFP10.228" Root="HKCR" Key="Interface\{F1BBE0DF-3CB8-4A3C-BD0A-1461EE6A83AC}\TypeLib" Name="Version" Value="1e.1" Type="string" />
-  <Registry Id="UcsFP10.229" Root="HKCR" Key="Interface\{FCFB3D2B-A0FA-1068-A738-08002B3371B5}" Value="_DClass" Type="string" />
-  <Registry Id="UcsFP10.230" Root="HKCR" Key="Interface\{FCFB3D2B-A0FA-1068-A738-08002B3371B5}\ProxyStubClsid" Value="{00020420-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.231" Root="HKCR" Key="Interface\{FCFB3D2B-A0FA-1068-A738-08002B3371B5}\ProxyStubClsid32" Value="{00020420-0000-0000-C000-000000000046}" Type="string" />
-  <Registry Id="UcsFP10.233" Root="HKCR" Key="Interface\{FCFB3D2B-A0FA-1068-A738-08002B3371B5}\TypeLib" Name="Version" Value="6.0" Type="string" />
-  <Registry Id="UcsFP10.238" Root="HKCR" Key="TypeLib\{5A99FB21-D0A2-410E-BBE5-C2B9A26108B2}\1e.1" Value="Unicontsoft Fiscal Printers Component 1.0 (1.0.56)" Type="string" />
-  <Registry Id="UcsFP10.239" Root="HKCR" Key="TypeLib\{5A99FB21-D0A2-410E-BBE5-C2B9A26108B2}\1e.1\0\win32" Value="[#UcsFP10.dll]" Type="string" />
-  <Registry Id="UcsFP10.240" Root="HKCR" Key="TypeLib\{5A99FB21-D0A2-410E-BBE5-C2B9A26108B2}\1e.1\FLAGS" Value="0" Type="string" />
-  <Registry Id="UcsFP10.241" Root="HKCR" Key="TypeLib\{5A99FB21-D0A2-410E-BBE5-C2B9A26108B2}\1e.1\HELPDIR" Value="[$UcsFP10.dll]" Type="string" />
-  <Registry Id="UcsFP10.246" Root="HKCR" Key="UcsFiscalPrinters.cEltradeProtocol" Value="UcsFiscalPrinters.cEltradeProtocol" Type="string" />
-  <Registry Id="UcsFP10.247" Root="HKCR" Key="UcsFiscalPrinters.cEltradeProtocol\Clsid" Value="{FA537561-3159-49F9-93CD-27731E6AFA30}" Type="string" />
-  <Registry Id="UcsFP10.248" Root="HKCR" Key="UcsFiscalPrinters.cFiscalAdmin" Value="UcsFiscalPrinters.cFiscalAdmin" Type="string" />
-  <Registry Id="UcsFP10.249" Root="HKCR" Key="UcsFiscalPrinters.cFiscalAdmin\Clsid" Value="{3FEBC39E-F0C3-474D-974A-3DB96F77CC73}" Type="string" />
-  <Registry Id="UcsFP10.250" Root="HKCR" Key="UcsFiscalPrinters.cFiscalPrinter" Value="UcsFiscalPrinters.cFiscalPrinter" Type="string" />
-  <Registry Id="UcsFP10.251" Root="HKCR" Key="UcsFiscalPrinters.cFiscalPrinter\Clsid" Value="{E884BC82-6F0D-44D5-A535-D98FE3614052}" Type="string" />
-  <Registry Id="UcsFP10.252" Root="HKCR" Key="UcsFiscalPrinters.cICLProtocol" Value="UcsFiscalPrinters.cICLProtocol" Type="string" />
-  <Registry Id="UcsFP10.253" Root="HKCR" Key="UcsFiscalPrinters.cICLProtocol\Clsid" Value="{1F8BAE6F-4431-4AC0-965B-274E6916E3A4}" Type="string" />
-  <Registry Id="UcsFP10.254" Root="HKCR" Key="UcsFiscalPrinters.cZekaProtocol" Value="UcsFiscalPrinters.cZekaProtocol" Type="string" />
-  <Registry Id="UcsFP10.255" Root="HKCR" Key="UcsFiscalPrinters.cZekaProtocol\Clsid" Value="{7E7CDA66-2F16-4E19-9F56-E8892B5331F7}" Type="string" />
-  <Registry Id="UcsFP10.256" Root="HKCR" Key="UcsFiscalPrinters.IDeviceProtocol" Value="UcsFiscalPrinters.IDeviceProtocol" Type="string" />
-  <Registry Id="UcsFP10.257" Root="HKCR" Key="UcsFiscalPrinters.IDeviceProtocol\Clsid" Value="{F1508ADC-4C7E-49E5-8A53-05187ED25C41}" Type="string" />
+  <Registry Id="UcsFP10.49" Root="HKCR" Key="Interface\{0DC4A4E2-E015-4AEB-9A05-D17744340DC3}" Value="cZekaProtocol" Type="string" />
+  <Registry Id="UcsFP10.50" Root="HKCR" Key="Interface\{0DC4A4E2-E015-4AEB-9A05-D17744340DC3}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.51" Root="HKCR" Key="Interface\{0DC4A4E2-E015-4AEB-9A05-D17744340DC3}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.52" Root="HKCR" Key="Interface\{0DC4A4E2-E015-4AEB-9A05-D17744340DC3}\TypeLib" Value="{5A99FB21-D0A2-410E-BBE5-C2B9A26108B2}" Type="string" />
+  <Registry Id="UcsFP10.53" Root="HKCR" Key="Interface\{0DC4A4E2-E015-4AEB-9A05-D17744340DC3}\TypeLib" Name="Version" Value="1e.1" Type="string" />
+  <Registry Id="UcsFP10.54" Root="HKCR" Key="Interface\{121932BC-6C7B-4D8C-A7F8-FC97B105DF0D}" Value="cICLProtocol" Type="string" />
+  <Registry Id="UcsFP10.55" Root="HKCR" Key="Interface\{121932BC-6C7B-4D8C-A7F8-FC97B105DF0D}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.56" Root="HKCR" Key="Interface\{121932BC-6C7B-4D8C-A7F8-FC97B105DF0D}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.57" Root="HKCR" Key="Interface\{121932BC-6C7B-4D8C-A7F8-FC97B105DF0D}\TypeLib" Value="{5A99FB21-D0A2-410E-BBE5-C2B9A26108B2}" Type="string" />
+  <Registry Id="UcsFP10.58" Root="HKCR" Key="Interface\{121932BC-6C7B-4D8C-A7F8-FC97B105DF0D}\TypeLib" Name="Version" Value="1e.1" Type="string" />
+  <Registry Id="UcsFP10.59" Root="HKCR" Key="Interface\{14E469E0-BF61-11CF-8385-8F69D8F1350B}" Value="AsyncProperty_VB5" Type="string" />
+  <Registry Id="UcsFP10.60" Root="HKCR" Key="Interface\{14E469E0-BF61-11CF-8385-8F69D8F1350B}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.61" Root="HKCR" Key="Interface\{14E469E0-BF61-11CF-8385-8F69D8F1350B}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.63" Root="HKCR" Key="Interface\{14E469E0-BF61-11CF-8385-8F69D8F1350B}\TypeLib" Name="Version" Value="6.0" Type="string" />
+  <Registry Id="UcsFP10.64" Root="HKCR" Key="Interface\{203F21B3-2A07-4B97-8EA2-65194F4729C9}" Value="IDeviceProtocol" Type="string" />
+  <Registry Id="UcsFP10.65" Root="HKCR" Key="Interface\{203F21B3-2A07-4B97-8EA2-65194F4729C9}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.66" Root="HKCR" Key="Interface\{203F21B3-2A07-4B97-8EA2-65194F4729C9}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.67" Root="HKCR" Key="Interface\{203F21B3-2A07-4B97-8EA2-65194F4729C9}\TypeLib" Value="{5A99FB21-D0A2-410E-BBE5-C2B9A26108B2}" Type="string" />
+  <Registry Id="UcsFP10.68" Root="HKCR" Key="Interface\{203F21B3-2A07-4B97-8EA2-65194F4729C9}\TypeLib" Name="Version" Value="1e.1" Type="string" />
+  <Registry Id="UcsFP10.69" Root="HKCR" Key="Interface\{2CE46480-1A08-11CF-AD63-00AA00614F3E}" Value="SelectedControls" Type="string" />
+  <Registry Id="UcsFP10.70" Root="HKCR" Key="Interface\{2CE46480-1A08-11CF-AD63-00AA00614F3E}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.71" Root="HKCR" Key="Interface\{2CE46480-1A08-11CF-AD63-00AA00614F3E}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.73" Root="HKCR" Key="Interface\{2CE46480-1A08-11CF-AD63-00AA00614F3E}\TypeLib" Name="Version" Value="6.0" Type="string" />
+  <Registry Id="UcsFP10.74" Root="HKCR" Key="Interface\{41A7D760-6018-11CF-9016-00AA0068841E}" Value="DataObject" Type="string" />
+  <Registry Id="UcsFP10.75" Root="HKCR" Key="Interface\{41A7D760-6018-11CF-9016-00AA0068841E}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.76" Root="HKCR" Key="Interface\{41A7D760-6018-11CF-9016-00AA0068841E}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.78" Root="HKCR" Key="Interface\{41A7D760-6018-11CF-9016-00AA0068841E}\TypeLib" Name="Version" Value="6.0" Type="string" />
+  <Registry Id="UcsFP10.79" Root="HKCR" Key="Interface\{41A7D761-6018-11CF-9016-00AA0068841E}" Value="DataObjectFiles" Type="string" />
+  <Registry Id="UcsFP10.80" Root="HKCR" Key="Interface\{41A7D761-6018-11CF-9016-00AA0068841E}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.81" Root="HKCR" Key="Interface\{41A7D761-6018-11CF-9016-00AA0068841E}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.83" Root="HKCR" Key="Interface\{41A7D761-6018-11CF-9016-00AA0068841E}\TypeLib" Name="Version" Value="6.0" Type="string" />
+  <Registry Id="UcsFP10.84" Root="HKCR" Key="Interface\{4495AD01-C993-11D1-A3E4-00A0C90AEA82}" Value="_PropertyBag" Type="string" />
+  <Registry Id="UcsFP10.85" Root="HKCR" Key="Interface\{4495AD01-C993-11D1-A3E4-00A0C90AEA82}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.86" Root="HKCR" Key="Interface\{4495AD01-C993-11D1-A3E4-00A0C90AEA82}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.88" Root="HKCR" Key="Interface\{4495AD01-C993-11D1-A3E4-00A0C90AEA82}\TypeLib" Name="Version" Value="6.0" Type="string" />
+  <Registry Id="UcsFP10.89" Root="HKCR" Key="Interface\{45046D60-08CA-11CF-A90F-00AA0062BB4C}" Value="PropertyBag_VB5" Type="string" />
+  <Registry Id="UcsFP10.90" Root="HKCR" Key="Interface\{45046D60-08CA-11CF-A90F-00AA0062BB4C}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.91" Root="HKCR" Key="Interface\{45046D60-08CA-11CF-A90F-00AA0062BB4C}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.93" Root="HKCR" Key="Interface\{45046D60-08CA-11CF-A90F-00AA0062BB4C}\TypeLib" Name="Version" Value="6.0" Type="string" />
+  <Registry Id="UcsFP10.94" Root="HKCR" Key="Interface\{5465AE1A-8EFB-4AD8-BBBE-6938A7BD92E0}" Value="cEltradeProtocol" Type="string" />
+  <Registry Id="UcsFP10.95" Root="HKCR" Key="Interface\{5465AE1A-8EFB-4AD8-BBBE-6938A7BD92E0}\ProxyStubClsid" Value="{00020420-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.96" Root="HKCR" Key="Interface\{5465AE1A-8EFB-4AD8-BBBE-6938A7BD92E0}\ProxyStubClsid32" Value="{00020420-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.97" Root="HKCR" Key="Interface\{5465AE1A-8EFB-4AD8-BBBE-6938A7BD92E0}\TypeLib" Value="{5A99FB21-D0A2-410E-BBE5-C2B9A26108B2}" Type="string" />
+  <Registry Id="UcsFP10.98" Root="HKCR" Key="Interface\{5465AE1A-8EFB-4AD8-BBBE-6938A7BD92E0}\TypeLib" Name="Version" Value="1e.1" Type="string" />
+  <Registry Id="UcsFP10.99" Root="HKCR" Key="Interface\{647B43DB-BE8E-4EE3-8EA3-C1AF087F9660}" Value="cFiscalAdmin" Type="string" />
+  <Registry Id="UcsFP10.100" Root="HKCR" Key="Interface\{647B43DB-BE8E-4EE3-8EA3-C1AF087F9660}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.101" Root="HKCR" Key="Interface\{647B43DB-BE8E-4EE3-8EA3-C1AF087F9660}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.102" Root="HKCR" Key="Interface\{647B43DB-BE8E-4EE3-8EA3-C1AF087F9660}\TypeLib" Value="{5A99FB21-D0A2-410E-BBE5-C2B9A26108B2}" Type="string" />
+  <Registry Id="UcsFP10.103" Root="HKCR" Key="Interface\{647B43DB-BE8E-4EE3-8EA3-C1AF087F9660}\TypeLib" Name="Version" Value="1e.1" Type="string" />
+  <Registry Id="UcsFP10.104" Root="HKCR" Key="Interface\{7128E420-D1BC-41E4-B92C-9A28BCACE225}" Value="cICLProtocol" Type="string" />
+  <Registry Id="UcsFP10.105" Root="HKCR" Key="Interface\{7128E420-D1BC-41E4-B92C-9A28BCACE225}\ProxyStubClsid" Value="{00020420-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.106" Root="HKCR" Key="Interface\{7128E420-D1BC-41E4-B92C-9A28BCACE225}\ProxyStubClsid32" Value="{00020420-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.107" Root="HKCR" Key="Interface\{7128E420-D1BC-41E4-B92C-9A28BCACE225}\TypeLib" Value="{5A99FB21-D0A2-410E-BBE5-C2B9A26108B2}" Type="string" />
+  <Registry Id="UcsFP10.108" Root="HKCR" Key="Interface\{7128E420-D1BC-41E4-B92C-9A28BCACE225}\TypeLib" Name="Version" Value="1e.1" Type="string" />
+  <Registry Id="UcsFP10.109" Root="HKCR" Key="Interface\{737361EC-467F-11D1-810F-0000F87557AA}" Value="Licenses" Type="string" />
+  <Registry Id="UcsFP10.110" Root="HKCR" Key="Interface\{737361EC-467F-11D1-810F-0000F87557AA}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.111" Root="HKCR" Key="Interface\{737361EC-467F-11D1-810F-0000F87557AA}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.113" Root="HKCR" Key="Interface\{737361EC-467F-11D1-810F-0000F87557AA}\TypeLib" Name="Version" Value="6.0" Type="string" />
+  <Registry Id="UcsFP10.114" Root="HKCR" Key="Interface\{7500A6BA-EB65-11D1-938D-0000F87557C9}" Value="DataBinding" Type="string" />
+  <Registry Id="UcsFP10.115" Root="HKCR" Key="Interface\{7500A6BA-EB65-11D1-938D-0000F87557C9}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.116" Root="HKCR" Key="Interface\{7500A6BA-EB65-11D1-938D-0000F87557C9}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.118" Root="HKCR" Key="Interface\{7500A6BA-EB65-11D1-938D-0000F87557C9}\TypeLib" Name="Version" Value="6.0" Type="string" />
+  <Registry Id="UcsFP10.119" Root="HKCR" Key="Interface\{8284B8A2-A8A8-11D1-A3D2-00A0C90AEA82}" Value="LicenseInfo" Type="string" />
+  <Registry Id="UcsFP10.120" Root="HKCR" Key="Interface\{8284B8A2-A8A8-11D1-A3D2-00A0C90AEA82}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.121" Root="HKCR" Key="Interface\{8284B8A2-A8A8-11D1-A3D2-00A0C90AEA82}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.123" Root="HKCR" Key="Interface\{8284B8A2-A8A8-11D1-A3D2-00A0C90AEA82}\TypeLib" Name="Version" Value="6.0" Type="string" />
+  <Registry Id="UcsFP10.124" Root="HKCR" Key="Interface\{83C49FF0-B294-11D0-9488-00A0C91110ED}" Value="DataMembers" Type="string" />
+  <Registry Id="UcsFP10.125" Root="HKCR" Key="Interface\{83C49FF0-B294-11D0-9488-00A0C91110ED}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.126" Root="HKCR" Key="Interface\{83C49FF0-B294-11D0-9488-00A0C91110ED}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.128" Root="HKCR" Key="Interface\{83C49FF0-B294-11D0-9488-00A0C91110ED}\TypeLib" Name="Version" Value="6.0" Type="string" />
+  <Registry Id="UcsFP10.129" Root="HKCR" Key="Interface\{888A5A60-B283-11CF-8AD5-00A0C90AEA82}" Value="Hyperlink" Type="string" />
+  <Registry Id="UcsFP10.130" Root="HKCR" Key="Interface\{888A5A60-B283-11CF-8AD5-00A0C90AEA82}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.131" Root="HKCR" Key="Interface\{888A5A60-B283-11CF-8AD5-00A0C90AEA82}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.133" Root="HKCR" Key="Interface\{888A5A60-B283-11CF-8AD5-00A0C90AEA82}\TypeLib" Name="Version" Value="6.0" Type="string" />
+  <Registry Id="UcsFP10.134" Root="HKCR" Key="Interface\{8B358818-8441-4F7E-886B-3718223F0CFC}" Value="cFiscalPrinter" Type="string" />
+  <Registry Id="UcsFP10.135" Root="HKCR" Key="Interface\{8B358818-8441-4F7E-886B-3718223F0CFC}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.136" Root="HKCR" Key="Interface\{8B358818-8441-4F7E-886B-3718223F0CFC}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.137" Root="HKCR" Key="Interface\{8B358818-8441-4F7E-886B-3718223F0CFC}\TypeLib" Value="{5A99FB21-D0A2-410E-BBE5-C2B9A26108B2}" Type="string" />
+  <Registry Id="UcsFP10.138" Root="HKCR" Key="Interface\{8B358818-8441-4F7E-886B-3718223F0CFC}\TypeLib" Name="Version" Value="1e.1" Type="string" />
+  <Registry Id="UcsFP10.139" Root="HKCR" Key="Interface\{907125DC-7EDA-4E41-8D51-89D516B69AE1}" Value="cZekaProtocol" Type="string" />
+  <Registry Id="UcsFP10.140" Root="HKCR" Key="Interface\{907125DC-7EDA-4E41-8D51-89D516B69AE1}\Forward" Value="{AAF1936B-9683-4420-9D4B-EF671CFBFA98}" Type="string" />
+  <Registry Id="UcsFP10.141" Root="HKCR" Key="Interface\{907125DC-7EDA-4E41-8D51-89D516B69AE1}\ProxyStubClsid" Value="{00020420-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.142" Root="HKCR" Key="Interface\{907125DC-7EDA-4E41-8D51-89D516B69AE1}\ProxyStubClsid32" Value="{00020420-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.143" Root="HKCR" Key="Interface\{9F9F6A53-8C1B-4516-A2AD-57C1D1E644E1}" Value="cICLProtocol" Type="string" />
+  <Registry Id="UcsFP10.144" Root="HKCR" Key="Interface\{9F9F6A53-8C1B-4516-A2AD-57C1D1E644E1}\Forward" Value="{7128E420-D1BC-41E4-B92C-9A28BCACE225}" Type="string" />
+  <Registry Id="UcsFP10.145" Root="HKCR" Key="Interface\{9F9F6A53-8C1B-4516-A2AD-57C1D1E644E1}\ProxyStubClsid" Value="{00020420-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.146" Root="HKCR" Key="Interface\{9F9F6A53-8C1B-4516-A2AD-57C1D1E644E1}\ProxyStubClsid32" Value="{00020420-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.157" Root="HKCR" Key="Interface\{AAF1936B-9683-4420-9D4B-EF671CFBFA98}" Value="cZekaProtocol" Type="string" />
+  <Registry Id="UcsFP10.158" Root="HKCR" Key="Interface\{AAF1936B-9683-4420-9D4B-EF671CFBFA98}\ProxyStubClsid" Value="{00020420-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.159" Root="HKCR" Key="Interface\{AAF1936B-9683-4420-9D4B-EF671CFBFA98}\ProxyStubClsid32" Value="{00020420-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.160" Root="HKCR" Key="Interface\{AAF1936B-9683-4420-9D4B-EF671CFBFA98}\TypeLib" Value="{5A99FB21-D0A2-410E-BBE5-C2B9A26108B2}" Type="string" />
+  <Registry Id="UcsFP10.161" Root="HKCR" Key="Interface\{AAF1936B-9683-4420-9D4B-EF671CFBFA98}\TypeLib" Name="Version" Value="1e.1" Type="string" />
+  <Registry Id="UcsFP10.162" Root="HKCR" Key="Interface\{B28FA150-0FF0-11CF-A911-00AA0062BB4C}" Value="AmbientProperties" Type="string" />
+  <Registry Id="UcsFP10.163" Root="HKCR" Key="Interface\{B28FA150-0FF0-11CF-A911-00AA0062BB4C}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.164" Root="HKCR" Key="Interface\{B28FA150-0FF0-11CF-A911-00AA0062BB4C}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.166" Root="HKCR" Key="Interface\{B28FA150-0FF0-11CF-A911-00AA0062BB4C}\TypeLib" Name="Version" Value="6.0" Type="string" />
+  <Registry Id="UcsFP10.167" Root="HKCR" Key="Interface\{BE8F9800-2AAA-11CF-AD67-00AA00614F3E}" Value="ParentControls" Type="string" />
+  <Registry Id="UcsFP10.168" Root="HKCR" Key="Interface\{BE8F9800-2AAA-11CF-AD67-00AA00614F3E}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.169" Root="HKCR" Key="Interface\{BE8F9800-2AAA-11CF-AD67-00AA00614F3E}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.171" Root="HKCR" Key="Interface\{BE8F9800-2AAA-11CF-AD67-00AA00614F3E}\TypeLib" Name="Version" Value="6.0" Type="string" />
+  <Registry Id="UcsFP10.172" Root="HKCR" Key="Interface\{C0324960-2AAA-11CF-AD67-00AA00614F3E}" Value="ContainedControls" Type="string" />
+  <Registry Id="UcsFP10.173" Root="HKCR" Key="Interface\{C0324960-2AAA-11CF-AD67-00AA00614F3E}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.174" Root="HKCR" Key="Interface\{C0324960-2AAA-11CF-AD67-00AA00614F3E}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.176" Root="HKCR" Key="Interface\{C0324960-2AAA-11CF-AD67-00AA00614F3E}\TypeLib" Name="Version" Value="6.0" Type="string" />
+  <Registry Id="UcsFP10.177" Root="HKCR" Key="Interface\{C4D651F0-7697-11D1-A1E9-00A0C90F2731}" Value="EventParameter" Type="string" />
+  <Registry Id="UcsFP10.178" Root="HKCR" Key="Interface\{C4D651F0-7697-11D1-A1E9-00A0C90F2731}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.179" Root="HKCR" Key="Interface\{C4D651F0-7697-11D1-A1E9-00A0C90F2731}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.181" Root="HKCR" Key="Interface\{C4D651F0-7697-11D1-A1E9-00A0C90F2731}\TypeLib" Name="Version" Value="6.0" Type="string" />
+  <Registry Id="UcsFP10.182" Root="HKCR" Key="Interface\{C4D651F1-7697-11D1-A1E9-00A0C90F2731}" Value="EventParameters" Type="string" />
+  <Registry Id="UcsFP10.183" Root="HKCR" Key="Interface\{C4D651F1-7697-11D1-A1E9-00A0C90F2731}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.184" Root="HKCR" Key="Interface\{C4D651F1-7697-11D1-A1E9-00A0C90F2731}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.186" Root="HKCR" Key="Interface\{C4D651F1-7697-11D1-A1E9-00A0C90F2731}\TypeLib" Name="Version" Value="6.0" Type="string" />
+  <Registry Id="UcsFP10.187" Root="HKCR" Key="Interface\{C4D651F2-7697-11D1-A1E9-00A0C90F2731}" Value="EventInfo" Type="string" />
+  <Registry Id="UcsFP10.188" Root="HKCR" Key="Interface\{C4D651F2-7697-11D1-A1E9-00A0C90F2731}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.189" Root="HKCR" Key="Interface\{C4D651F2-7697-11D1-A1E9-00A0C90F2731}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.191" Root="HKCR" Key="Interface\{C4D651F2-7697-11D1-A1E9-00A0C90F2731}\TypeLib" Name="Version" Value="6.0" Type="string" />
+  <Registry Id="UcsFP10.192" Root="HKCR" Key="Interface\{CBB76011-C508-11D1-A3E3-00A0C90AEA82}" Value="AsyncProperty" Type="string" />
+  <Registry Id="UcsFP10.193" Root="HKCR" Key="Interface\{CBB76011-C508-11D1-A3E3-00A0C90AEA82}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.194" Root="HKCR" Key="Interface\{CBB76011-C508-11D1-A3E3-00A0C90AEA82}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.196" Root="HKCR" Key="Interface\{CBB76011-C508-11D1-A3E3-00A0C90AEA82}\TypeLib" Name="Version" Value="6.0" Type="string" />
+  <Registry Id="UcsFP10.197" Root="HKCR" Key="Interface\{D4E0F020-720A-11CF-8136-00AA00C14959}" Value="DataBindings" Type="string" />
+  <Registry Id="UcsFP10.198" Root="HKCR" Key="Interface\{D4E0F020-720A-11CF-8136-00AA00C14959}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.199" Root="HKCR" Key="Interface\{D4E0F020-720A-11CF-8136-00AA00C14959}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.201" Root="HKCR" Key="Interface\{D4E0F020-720A-11CF-8136-00AA00C14959}\TypeLib" Name="Version" Value="6.0" Type="string" />
+  <Registry Id="UcsFP10.202" Root="HKCR" Key="Interface\{D689EDF0-45F6-449B-8F3A-136A2E72E044}" Value="cEltradeProtocol" Type="string" />
+  <Registry Id="UcsFP10.203" Root="HKCR" Key="Interface\{D689EDF0-45F6-449B-8F3A-136A2E72E044}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.204" Root="HKCR" Key="Interface\{D689EDF0-45F6-449B-8F3A-136A2E72E044}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.205" Root="HKCR" Key="Interface\{D689EDF0-45F6-449B-8F3A-136A2E72E044}\TypeLib" Value="{5A99FB21-D0A2-410E-BBE5-C2B9A26108B2}" Type="string" />
+  <Registry Id="UcsFP10.206" Root="HKCR" Key="Interface\{D689EDF0-45F6-449B-8F3A-136A2E72E044}\TypeLib" Name="Version" Value="1e.1" Type="string" />
+  <Registry Id="UcsFP10.207" Root="HKCR" Key="Interface\{E43FD401-8715-11D1-98E7-00A0C9702442}" Value="IVbeRuntimeHost" Type="string" />
+  <Registry Id="UcsFP10.208" Root="HKCR" Key="Interface\{E43FD401-8715-11D1-98E7-00A0C9702442}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.209" Root="HKCR" Key="Interface\{E43FD401-8715-11D1-98E7-00A0C9702442}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.211" Root="HKCR" Key="Interface\{E43FD401-8715-11D1-98E7-00A0C9702442}\TypeLib" Name="Version" Value="6.0" Type="string" />
+  <Registry Id="UcsFP10.212" Root="HKCR" Key="Interface\{EB41E8C1-4442-11D1-8906-00A0C9110049}" Value="_DDataBoundClass" Type="string" />
+  <Registry Id="UcsFP10.213" Root="HKCR" Key="Interface\{EB41E8C1-4442-11D1-8906-00A0C9110049}\ProxyStubClsid" Value="{00020420-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.214" Root="HKCR" Key="Interface\{EB41E8C1-4442-11D1-8906-00A0C9110049}\ProxyStubClsid32" Value="{00020420-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.216" Root="HKCR" Key="Interface\{EB41E8C1-4442-11D1-8906-00A0C9110049}\TypeLib" Name="Version" Value="6.0" Type="string" />
+  <Registry Id="UcsFP10.217" Root="HKCR" Key="Interface\{EB41E8C2-4442-11D1-8906-00A0C9110049}" Value="_DDataSourceClass" Type="string" />
+  <Registry Id="UcsFP10.218" Root="HKCR" Key="Interface\{EB41E8C2-4442-11D1-8906-00A0C9110049}\ProxyStubClsid" Value="{00020420-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.219" Root="HKCR" Key="Interface\{EB41E8C2-4442-11D1-8906-00A0C9110049}\ProxyStubClsid32" Value="{00020420-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.221" Root="HKCR" Key="Interface\{EB41E8C2-4442-11D1-8906-00A0C9110049}\TypeLib" Name="Version" Value="6.0" Type="string" />
+  <Registry Id="UcsFP10.222" Root="HKCR" Key="Interface\{EB41E8C3-4442-11D1-8906-00A0C9110049}" Value="_DDataBoundAndDataSourceClass" Type="string" />
+  <Registry Id="UcsFP10.223" Root="HKCR" Key="Interface\{EB41E8C3-4442-11D1-8906-00A0C9110049}\ProxyStubClsid" Value="{00020420-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.224" Root="HKCR" Key="Interface\{EB41E8C3-4442-11D1-8906-00A0C9110049}\ProxyStubClsid32" Value="{00020420-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.226" Root="HKCR" Key="Interface\{EB41E8C3-4442-11D1-8906-00A0C9110049}\TypeLib" Name="Version" Value="6.0" Type="string" />
+  <Registry Id="UcsFP10.227" Root="HKCR" Key="Interface\{EB41E8C4-4442-11D1-8906-00A0C9110049}" Value="_DPersistableClass" Type="string" />
+  <Registry Id="UcsFP10.228" Root="HKCR" Key="Interface\{EB41E8C4-4442-11D1-8906-00A0C9110049}\ProxyStubClsid" Value="{00020420-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.229" Root="HKCR" Key="Interface\{EB41E8C4-4442-11D1-8906-00A0C9110049}\ProxyStubClsid32" Value="{00020420-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.231" Root="HKCR" Key="Interface\{EB41E8C4-4442-11D1-8906-00A0C9110049}\TypeLib" Name="Version" Value="6.0" Type="string" />
+  <Registry Id="UcsFP10.232" Root="HKCR" Key="Interface\{EB41E8C5-4442-11D1-8906-00A0C9110049}" Value="_DPersistableDataSourceClass" Type="string" />
+  <Registry Id="UcsFP10.233" Root="HKCR" Key="Interface\{EB41E8C5-4442-11D1-8906-00A0C9110049}\ProxyStubClsid" Value="{00020420-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.234" Root="HKCR" Key="Interface\{EB41E8C5-4442-11D1-8906-00A0C9110049}\ProxyStubClsid32" Value="{00020420-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.236" Root="HKCR" Key="Interface\{EB41E8C5-4442-11D1-8906-00A0C9110049}\TypeLib" Name="Version" Value="6.0" Type="string" />
+  <Registry Id="UcsFP10.237" Root="HKCR" Key="Interface\{EBB99793-2AB1-41FE-A927-394676153EB1}" Value="cICLProtocol" Type="string" />
+  <Registry Id="UcsFP10.238" Root="HKCR" Key="Interface\{EBB99793-2AB1-41FE-A927-394676153EB1}\Forward" Value="{121932BC-6C7B-4D8C-A7F8-FC97B105DF0D}" Type="string" />
+  <Registry Id="UcsFP10.239" Root="HKCR" Key="Interface\{EBB99793-2AB1-41FE-A927-394676153EB1}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.240" Root="HKCR" Key="Interface\{EBB99793-2AB1-41FE-A927-394676153EB1}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.241" Root="HKCR" Key="Interface\{F1BBE0DF-3CB8-4A3C-BD0A-1461EE6A83AC}" Value="cZekaProtocol" Type="string" />
+  <Registry Id="UcsFP10.242" Root="HKCR" Key="Interface\{F1BBE0DF-3CB8-4A3C-BD0A-1461EE6A83AC}\Forward" Value="{0DC4A4E2-E015-4AEB-9A05-D17744340DC3}" Type="string" />
+  <Registry Id="UcsFP10.243" Root="HKCR" Key="Interface\{F1BBE0DF-3CB8-4A3C-BD0A-1461EE6A83AC}\ProxyStubClsid" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.244" Root="HKCR" Key="Interface\{F1BBE0DF-3CB8-4A3C-BD0A-1461EE6A83AC}\ProxyStubClsid32" Value="{00020424-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.245" Root="HKCR" Key="Interface\{FCFB3D2B-A0FA-1068-A738-08002B3371B5}" Value="_DClass" Type="string" />
+  <Registry Id="UcsFP10.246" Root="HKCR" Key="Interface\{FCFB3D2B-A0FA-1068-A738-08002B3371B5}\ProxyStubClsid" Value="{00020420-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.247" Root="HKCR" Key="Interface\{FCFB3D2B-A0FA-1068-A738-08002B3371B5}\ProxyStubClsid32" Value="{00020420-0000-0000-C000-000000000046}" Type="string" />
+  <Registry Id="UcsFP10.249" Root="HKCR" Key="Interface\{FCFB3D2B-A0FA-1068-A738-08002B3371B5}\TypeLib" Name="Version" Value="6.0" Type="string" />
+  <Registry Id="UcsFP10.254" Root="HKCR" Key="TypeLib\{5A99FB21-D0A2-410E-BBE5-C2B9A26108B2}\1e.1" Value="Unicontsoft Fiscal Printers Component 1.0 (1.0.57)" Type="string" />
+  <Registry Id="UcsFP10.255" Root="HKCR" Key="TypeLib\{5A99FB21-D0A2-410E-BBE5-C2B9A26108B2}\1e.1\0\win32" Value="[#UcsFP10.dll]" Type="string" />
+  <Registry Id="UcsFP10.256" Root="HKCR" Key="TypeLib\{5A99FB21-D0A2-410E-BBE5-C2B9A26108B2}\1e.1\FLAGS" Value="0" Type="string" />
+  <Registry Id="UcsFP10.257" Root="HKCR" Key="TypeLib\{5A99FB21-D0A2-410E-BBE5-C2B9A26108B2}\1e.1\HELPDIR" Value="[$UcsFP10.dll]" Type="string" />
+  <Registry Id="UcsFP10.262" Root="HKCR" Key="UcsFiscalPrinters.cEltradeProtocol" Value="UcsFiscalPrinters.cEltradeProtocol" Type="string" />
+  <Registry Id="UcsFP10.263" Root="HKCR" Key="UcsFiscalPrinters.cEltradeProtocol\Clsid" Value="{FA537561-3159-49F9-93CD-27731E6AFA30}" Type="string" />
+  <Registry Id="UcsFP10.264" Root="HKCR" Key="UcsFiscalPrinters.cFiscalAdmin" Value="UcsFiscalPrinters.cFiscalAdmin" Type="string" />
+  <Registry Id="UcsFP10.265" Root="HKCR" Key="UcsFiscalPrinters.cFiscalAdmin\Clsid" Value="{3FEBC39E-F0C3-474D-974A-3DB96F77CC73}" Type="string" />
+  <Registry Id="UcsFP10.266" Root="HKCR" Key="UcsFiscalPrinters.cFiscalPrinter" Value="UcsFiscalPrinters.cFiscalPrinter" Type="string" />
+  <Registry Id="UcsFP10.267" Root="HKCR" Key="UcsFiscalPrinters.cFiscalPrinter\Clsid" Value="{E884BC82-6F0D-44D5-A535-D98FE3614052}" Type="string" />
+  <Registry Id="UcsFP10.268" Root="HKCR" Key="UcsFiscalPrinters.cICLProtocol" Value="UcsFiscalPrinters.cICLProtocol" Type="string" />
+  <Registry Id="UcsFP10.269" Root="HKCR" Key="UcsFiscalPrinters.cICLProtocol\Clsid" Value="{1F8BAE6F-4431-4AC0-965B-274E6916E3A4}" Type="string" />
+  <Registry Id="UcsFP10.270" Root="HKCR" Key="UcsFiscalPrinters.cZekaProtocol" Value="UcsFiscalPrinters.cZekaProtocol" Type="string" />
+  <Registry Id="UcsFP10.271" Root="HKCR" Key="UcsFiscalPrinters.cZekaProtocol\Clsid" Value="{7E7CDA66-2F16-4E19-9F56-E8892B5331F7}" Type="string" />
+  <Registry Id="UcsFP10.272" Root="HKCR" Key="UcsFiscalPrinters.IDeviceProtocol" Value="UcsFiscalPrinters.IDeviceProtocol" Type="string" />
+  <Registry Id="UcsFP10.273" Root="HKCR" Key="UcsFiscalPrinters.IDeviceProtocol\Clsid" Value="{F1508ADC-4C7E-49E5-8A53-05187ED25C41}" Type="string" />
 </Include>
