@@ -7,21 +7,23 @@ namespace Demo1
     {
         static void Main(string[] args)
         {
-            // cast to printer independent IDeviceProtocol interface
-            var fp = (IDeviceProtocol)new cICLProtocol();
-
-            // format of device string: port[,speed][,data,parity,stop]
-            fp.Init("COM3,9600");
+            // will use Datecs fiscal printer
+            var prot = new cICLProtocol();
 
             // setup localized commands for Serbia
             if (CultureInfo.CurrentCulture.Name.Substring(0, 5) == "sr-SP")
             {
-                var prot = (cICLProtocol)fp;
-                // command parameters use ';' for first separator. apparently Datecs made this protocol 
+                // open fiscal receipt command uses ';' for first separator. apparently Datecs made this protocol 
                 //   incompatibiliy for Serbia on purpose to prevent interoperability with BG software.
                 prot.SetLocalizedCommand("pvPrintReceipt", "FiscalOpen2", Param: "%1;%2,%3");
                 prot.SetLocalizedCommand("pvPrintReceipt", "FiscalOpen3", Param: "%1;%2,%3");
             }
+            
+            // cast to printer independent IDeviceProtocol interface
+            var fp = (IDeviceProtocol)prot;
+
+            // format of device string: port[,speed][,data,parity,stop]
+            fp.Init("COM3,9600");
 
             // queue new fiscal reciept
             fp.StartReceipt(UcsFiscalReceiptTypeEnum.ucsFscRetFiscal, "1", "Operator 1", "0000");
