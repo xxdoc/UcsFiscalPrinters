@@ -1,14 +1,38 @@
 Attribute VB_Name = "mdGlobals"
 '=========================================================================
-' $Header: /UcsFiscalPrinter/Src/mdGlobals.bas 24    31.03.14 17:34 Wqw $
+' $Header: /UcsFiscalPrinter/Src/mdGlobals.bas 32    30.01.15 15:30 Wqw $
 '
 '   Unicontsoft Fiscal Printers Project
-'   Copyright (c) 2008-2014 Unicontsoft
+'   Copyright (c) 2008-2015 Unicontsoft
 '
 '   Global functions, constants and variables
 '
 ' $Log: /UcsFiscalPrinter/Src/mdGlobals.bas $
 ' 
+' 32    30.01.15 15:30 Wqw
+' REF: date timer precision
+'
+' 31    30.01.15 15:06 Wqw
+' ADD: Sub FlushDebugLog
+'
+' 30    29.01.15 11:45 Wqw
+' REF: public debug log file handle
+'
+' 29    28.01.15 15:34 Wqw
+' REF: output debug log keeps log file open for performance
+'
+' 28    23.01.15 17:58 Wqw
+' ADD: global persistent port object
+'
+' 27    23.01.15 17:11 Wqw
+' REF: impl persistent com ports
+'
+' 26    17.12.14 16:07 Wqw
+' REF: impl to ascii
+'
+' 25    31.07.14 16:06 Wqw
+' ADD: Consts
+'
 ' 24    31.03.14 17:34 Wqw
 ' REF: impl GetConfigForCommand params for localized commands
 '
@@ -197,6 +221,8 @@ Private Declare Function IsTextUnicode Lib "advapi32" (lpBuffer As Any, ByVal cb
 Private Declare Function GetFileAttributes Lib "kernel32" Alias "GetFileAttributesA" (ByVal lpFileName As String) As Long
 Private Declare Function VariantChangeType Lib "oleaut32" (dest As Variant, src As Variant, ByVal wFlags As Integer, ByVal vt As Long) As Long
 Private Declare Function VariantCopy Lib "oleaut32" (dest As Variant, src As Variant) As Long
+Private Declare Function WideCharToMultiByte Lib "kernel32" (ByVal CodePage As Long, ByVal dwFlags As Long, ByVal lpWideCharStr As Long, ByVal cchWideChar As Long, lpMultiByteStr As Any, ByVal cchMultiByte As Long, ByVal lpDefaultChar As Long, ByVal lpUsedDefaultChar As Long) As Long
+Private Declare Function GetSystemTimeAsFileTime Lib "kernel32.dll" (lpSystemTimeAsFileTime As Currency) As Long
 
 Private Type OPENFILENAME
     lStructSize         As Long     ' size of type/structure
@@ -327,22 +353,21 @@ Public Const STR_PROTOCOL_DATECS_FP As String = "DATECS FP/ECR"
 Public Const STR_PROTOCOL_DAISY_ECR As String = "DAISY MICRO"
 Public Const STR_PROTOCOL_ZEKA_FP   As String = "TREMOL ZEKA"
 Public Const CHR1                   As String = "" '--- Chr$(1)
+Public Const DBL_EPSILON            As Double = 0.0000000001
 
-Public g_sDecimalSeparator      As String
-Public g_hGdip                  As Long
-Public g_oConfig                As Object
+Private m_sDecimalSeparator     As String
+Private m_hGdiPlus              As Long
+Private m_oConfig               As Object
+Private m_oPortWrapper          As cPortWrapper
+Private m_nDebugLogFile         As Integer
 
 '=========================================================================
 ' Error handling
 '=========================================================================
 
-Private Sub PrintError(sFunc As String, Optional ByVal bUnattended As Boolean)
+Private Sub PrintError(sFunc As String)
     Debug.Print MODULE_NAME & "." & sFunc & ": " & Err.Description
-    If bUnattended Then
-        OutputDebugLog MODULE_NAME, sFunc & "(" & Erl & ")", "Run-time error: " & Err.Description
-    Else
-        MsgBox MODULE_NAME & "." & sFunc & "(" & Erl & ")" & ": " & Err.Description, vbCritical
-    End If
+    OutputDebugLog MODULE_NAME, sFunc & "(" & Erl & ")", "Run-time error: " & Err.Description
 End Sub
 
 Private Sub RaiseError(sFunc As String)
@@ -350,6 +375,18 @@ Private Sub RaiseError(sFunc As String)
     OutputDebugLog MODULE_NAME, sFunc & "(" & Erl & ")", "Run-time error: " & Err.Description
     Err.Raise Err.Number, MODULE_NAME & "." & sFunc & "(" & Erl & ")" & vbCrLf & Err.Source, Err.Description
 End Sub
+
+'=========================================================================
+' Properties
+'=========================================================================
+
+Property Get DecimalSeparator() As String
+    DecimalSeparator = m_sDecimalSeparator
+End Property
+
+Property Get PortWrapper() As cPortWrapper
+    Set PortWrapper = m_oPortWrapper
+End Property
 
 '=========================================================================
 ' Functions
@@ -362,7 +399,7 @@ Private Sub Main()
     Dim sError          As String
     
     On Error GoTo EH
-    g_sDecimalSeparator = GetDecimalSeparator()
+    m_sDecimalSeparator = GetDecimalSeparator()
     sFile = LocateFile(App.Path & "\" & App.EXEName & ".conf")
     If LenB(sFile) <> 0 Then
         OutputDebugLog MODULE_NAME, FUNC_NAME, "Loading config file " & sFile
@@ -374,7 +411,8 @@ Private Sub Main()
     If Not IsObject(vJson) Then
         JsonParse "{}", vJson
     End If
-    Set g_oConfig = vJson
+    Set m_oConfig = vJson
+    Set m_oPortWrapper = New cPortWrapper
     Exit Sub
 EH:
     PrintError FUNC_NAME
@@ -437,7 +475,7 @@ Public Function C_Dbl(Value As Variant) As Double
     
     If VarType(Value) = vbDouble Then
         C_Dbl = Value
-    ElseIf VariantChangeType(vDest, Replace(C_Str(Value), ".", g_sDecimalSeparator), 0, VT_R8) = 0 Then
+    ElseIf VariantChangeType(vDest, Replace(C_Str(Value), ".", m_sDecimalSeparator), 0, VT_R8) = 0 Then
         C_Dbl = vDest
     End If
 End Function
@@ -547,49 +585,68 @@ Public Function EnumSerialPorts() As Variant
     End If
     Exit Function
 EH:
-    PrintError FUNC_NAME, True
+    PrintError FUNC_NAME
     Resume Next
 End Function
 
 Public Sub OutputDebugLog(sModule As String, sFunc As String, sText As String)
     Const LNG_MAX_SIZE  As Long = 10& * 1024 * 1024
+    Dim vErr            As Variant
     Dim sFile           As String
-    Dim nFile           As Integer
-    Dim lErrNum         As Long
-    Dim sErrSrc         As String
-    Dim sErrDesc        As String
     Dim sNewFile        As String
     
-    lErrNum = Err.Number
-    sErrSrc = Err.Source
-    sErrDesc = Err.Description
+    vErr = Array(Err.Number, Err.Description, Err.Source)
+    If m_nDebugLogFile = -1 Then
+        Exit Sub
+    End If
     On Error Resume Next '--- checked
-    sFile = Environ$("_UCS_FISCAL_PRINTER_LOG")
-    If LenB(sFile) = 0 Then
-        sFile = Environ$("TEMP") & "\UcsFP.log"
-        If Not FileExists(sFile) Then
-            GoTo QH
-        End If
-    End If
-    If FileExists(sFile) Then
-        If FileLen(sFile) > LNG_MAX_SIZE Then
-            If InStrRev(sFile, ".") > InStrRev(sFile, "\") Then
-                sNewFile = Left$(sFile, InStrRev(sFile, ".") - 1) & Format$(Date, "_yyyy_mm_dd") & Mid$(sFile, InStrRev(sFile, "."))
-            Else
-                sNewFile = sFile & Format$(Date, "_yyyy_mm_dd")
+    If m_nDebugLogFile = 0 Then
+        sFile = Environ$("_UCS_FISCAL_PRINTER_LOG")
+        If LenB(sFile) = 0 Then
+            sFile = Environ$("TEMP") & "\UcsFP.log"
+            If Not FileExists(sFile) Then
+                m_nDebugLogFile = -1
+                GoTo QH
             End If
-            Name sFile As sNewFile
         End If
+        If FileExists(sFile) Then
+            If FileLen(sFile) > LNG_MAX_SIZE Then
+                If InStrRev(sFile, ".") > InStrRev(sFile, "\") Then
+                    sNewFile = Left$(sFile, InStrRev(sFile, ".") - 1) & Format$(Date, "_yyyy_mm_dd") & Mid$(sFile, InStrRev(sFile, "."))
+                Else
+                    sNewFile = sFile & Format$(Date, "_yyyy_mm_dd")
+                End If
+                Name sFile As sNewFile
+            End If
+        End If
+        m_nDebugLogFile = FreeFile
+        Open sFile For Append Access Write Shared As #m_nDebugLogFile
     End If
-    nFile = FreeFile
-    Open sFile For Append Access Write As #nFile
-    Print #nFile, sModule & "." & sFunc & "(" & Now & "." & Right$(Format$(Timer, "#0.00"), 2) & "): " & sText
-    Close #nFile
+    Print #m_nDebugLogFile, sModule & "." & sFunc & "(" & Now & Right$(Format$(DateTimer, "0.000"), 4) & "): " & sText
+    If LOF(m_nDebugLogFile) > LNG_MAX_SIZE Then
+        Close #m_nDebugLogFile
+        m_nDebugLogFile = 0
+    End If
 QH:
     On Error GoTo 0
-    Err.Number = lErrNum
-    Err.Source = sErrSrc
-    Err.Description = sErrDesc
+    Err.Number = vErr(0)
+    Err.Description = vErr(1)
+    Err.Source = vErr(2)
+End Sub
+
+Public Sub FlushDebugLog()
+    Dim vErr            As Variant
+    
+    vErr = Array(Err.Number, Err.Description, Err.Source)
+    On Error GoTo QH
+    If m_nDebugLogFile <> 0 And m_nDebugLogFile <> -1 Then
+        Close #m_nDebugLogFile
+        m_nDebugLogFile = 0
+    End If
+QH:
+    Err.Number = vErr(0)
+    Err.Description = vErr(1)
+    Err.Source = vErr(2)
 End Sub
 
 Public Function Round(ByVal Value As Double, Optional ByVal NumDigits As Long) As Double
@@ -891,10 +948,12 @@ Public Function OpenSaveDialog(ByVal hWndOwner As Long, ByVal sFilter As String,
     Const FUNC_NAME     As String = "OpenSaveDialog"
     Dim uOFN            As OPENFILENAME
     Dim sBuffer         As String
+    Dim baFilter()      As Byte
+    Dim baTitle()       As Byte
     
     On Error GoTo EH
-    sFilter = StrConv(Replace(sFilter, "|", vbNullChar), vbFromUnicode)
-    sTitle = StrConv(sTitle, vbFromUnicode)
+    baFilter = ToAscii(Replace(sFilter, "|", vbNullChar))
+    baTitle = ToAscii(sTitle)
     sBuffer = String$(1000, 0)
     If OsVersion >= 500 Then
         uOFN.lStructSize = Len(uOFN)
@@ -903,9 +962,9 @@ Public Function OpenSaveDialog(ByVal hWndOwner As Long, ByVal sFilter As String,
     End If
     uOFN.flags = OFN_LONGNAMES Or OFN_CREATEPROMPT Or OFN_HIDEREADONLY Or OFN_EXTENSIONDIFFERENT Or OFN_EXPLORER Or OFN_ENABLESIZING
     uOFN.hWndOwner = hWndOwner
-    uOFN.lpstrFilter = StrPtr(sFilter)
+    uOFN.lpstrFilter = VarPtr(baFilter(0))
     uOFN.nFilterIndex = 1
-    uOFN.lpstrTitle = StrPtr(sTitle)
+    uOFN.lpstrTitle = VarPtr(baTitle(0))
     uOFN.lpstrFile = StrPtr(sBuffer)
     uOFN.nMaxFile = Len(sBuffer)
     If GetOpenFileName(uOFN) <> 0 Then
@@ -1035,9 +1094,9 @@ End Function
 Public Function GdipLoadImage(sFile As String) As Long
     Dim uStartup        As GDIPLUS_STARTUP_INPUT
     
-    If g_hGdip = 0 Then
+    If m_hGdiPlus = 0 Then
         uStartup.GdiplusVersion = 1&
-        Call GdiplusStartup(g_hGdip, uStartup)
+        Call GdiplusStartup(m_hGdiPlus, uStartup)
     End If
     Call GdipLoadImageFromFile(StrPtr(sFile), GdipLoadImage)
 End Function
@@ -1117,10 +1176,10 @@ Public Function GetConfigValue(sSerial As String, sKey As String, Optional vDefa
     
     On Error GoTo EH
     If LenB(sSerial) <> 0 Then
-        If g_oConfig.Exists(sSerial) Then
-            If IsObject(g_oConfig(sSerial)) Then
-                If g_oConfig(sSerial).Exists(sKey) Then
-                    AssignVariant GetConfigValue, g_oConfig(sSerial).Item(sKey)
+        If m_oConfig.Exists(sSerial) Then
+            If IsObject(m_oConfig(sSerial)) Then
+                If m_oConfig(sSerial).Exists(sKey) Then
+                    AssignVariant GetConfigValue, m_oConfig(sSerial).Item(sKey)
                     Exit Function
                 End If
             End If
@@ -1210,7 +1269,7 @@ Public Function LocateFile(sFile As String) As String
 End Function
 
 Public Function SafeFormat(Expression As Variant, Optional Fmt As Variant, Optional sDecimal As String = ".") As String
-    SafeFormat = Replace(Format$(Expression, Fmt), g_sDecimalSeparator, sDecimal)
+    SafeFormat = Replace(Format$(Expression, Fmt), m_sDecimalSeparator, sDecimal)
 End Function
 
 Public Function SafeText(sText As String) As String
@@ -1277,7 +1336,10 @@ Public Function GetConfigForCommand(oConfigCmd As Collection, oLocalizedCmd As C
 End Function
 
 Public Property Get DateTimer() As Double
-    DateTimer = CLng(Date) * 86400# + Timer
+    Dim cDateTime       As Currency
+    
+    Call GetSystemTimeAsFileTime(cDateTime)
+    DateTimer = CDbl(cDateTime - 9435304800000@) / 1000#
 End Property
 
 Public Function ToHexDump(sText As String) As String
@@ -1339,12 +1401,12 @@ Public Function DispInvoke( _
     If Not IsMissing(Args) Then
         If IsArray(Args) Then
             lParamCount = UBound(Args) - LBound(Args)
-            ReDim aParams(0 To lParamCount)
+            ReDim aParams(0 To lParamCount) As Variant
             For lIdx = 0 To lParamCount
                 Call VariantCopy(aParams(lParamCount - lIdx), Args(lIdx))
             Next
         Else
-            ReDim aParams(0 To 0)
+            ReDim aParams(0 To 0) As Variant
             Call VariantCopy(aParams(0), Args)
         End If
         With uParams
@@ -1396,5 +1458,19 @@ Public Function ParseSum(sValue As String) As Double
     Else
         ParseSum = C_Dbl(sValue) / 100#
     End If
+End Function
+
+Public Function ToAscii(sSend As String) As Byte()
+    Dim lSize           As Long
+    Dim baText()        As Byte
+    
+    lSize = Len(sSend)
+    If lSize > 0 Then
+        ReDim baText(0 To lSize - 1) As Byte
+        Call WideCharToMultiByte(0, 0, StrPtr(sSend), lSize, baText(0), Len(sSend), 0, 0)
+    Else
+        baText = " "
+    End If
+    ToAscii = baText
 End Function
 

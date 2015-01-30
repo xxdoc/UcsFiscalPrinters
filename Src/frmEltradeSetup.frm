@@ -499,7 +499,7 @@ Begin VB.Form frmEltradeSetup
       Top             =   90
       Width           =   5775
       Begin VB.ListBox lstYesNoParams 
-         Height          =   4152
+         Height          =   3924
          ItemData        =   "frmEltradeSetup.frx":000C
          Left            =   180
          List            =   "frmEltradeSetup.frx":0040
@@ -2282,15 +2282,24 @@ Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
 '=========================================================================
-' $Header: /UcsFiscalPrinter/Src/frmEltradeSetup.frm 10    18.06.13 17:18 Wqw $
+' $Header: /UcsFiscalPrinter/Src/frmEltradeSetup.frm 13    30.01.15 15:32 Wqw $
 '
 '   Unicontsoft Fiscal Printers Project
-'   Copyright (c) 2008-2013 Unicontsoft
+'   Copyright (c) 2008-2014 Unicontsoft
 '
 '   Nastrojka na ECR po Eltrade protocol
 '
 ' $Log: /UcsFiscalPrinter/Src/frmEltradeSetup.frm $
 ' 
+' 13    30.01.15 15:32 Wqw
+' REF: format elapsed time in ms
+'
+' 12    17.12.14 16:09 Wqw
+' REF: uses to ascii
+'
+' 11    26.11.14 19:19 Wqw
+' REF: spelling
+'
 ' 10    18.06.13 17:18 Wqw
 ' REF: uses global c_lng
 '
@@ -2357,7 +2366,7 @@ Private Const STR_STATUS_SUCCESS_FETCH As String = "Успешно получаване на %1 (%2
 Private Const STR_STATUS_SAVING     As String = "Запазване..."
 Private Const STR_STATUS_SUCCESS_SAVE As String = "Успешно запазване на %1 (%2 сек.)"
 Private Const STR_STATUS_SUCCESS_CONNECT As String = "Свързан %1"
-Private Const STR_STATUS_FETCH_OPER As String = "Получаване опрератор %1 от " & LNG_NUM_OPERS & "..."
+Private Const STR_STATUS_FETCH_OPER As String = "Получаване оператор %1 от " & LNG_NUM_OPERS & "..."
 Private Const STR_STATUS_NO_OPER_SELECTED As String = "Липсва избран оператор"
 Private Const STR_STATUS_FETCH_DEP  As String = "Получаване департамент %1 от " & LNG_NUM_DEPS & "..."
 Private Const STR_STATUS_NO_DEP_SELECTED As String = "Липсва избран департамент"
@@ -3102,8 +3111,8 @@ Private Function pvFromPbcd(sText As String) As String
     Dim baText()        As Byte
     Dim lIdx            As Long
     
-    baText = StrConv(sText, vbFromUnicode)
-    For lIdx = 0 To UBound(baText)
+    baText = ToAscii(sText)
+    For lIdx = 0 To Len(sText) - 1
         pvFromPbcd = pvFromPbcd & Right$("0" & Hex(baText(lIdx)), 2)
     Next
 End Function
@@ -3195,7 +3204,7 @@ Private Sub lstCmds_Click()
     
     On Error GoTo EH
     Screen.MousePointer = vbHourglass
-    dblTimer = Timer
+    dblTimer = DateTimer
     If lstCmds.ListIndex = ucsCmdSettings Or lstCmds.ListIndex = ucsCmdOperations Or lstCmds.ListIndex = ucsCmdAdmin Then
         lVisibleFrame = -1
         GoTo QH
@@ -3213,7 +3222,7 @@ Private Sub lstCmds_Click()
     pvStatus = STR_STATUS_FETCHING
     If pvFetchData(lstCmds.ListIndex) Then
         If pvStatus = STR_STATUS_FETCHING Or LenB(pvStatus) = 0 Then
-            pvStatus = Printf(STR_STATUS_SUCCESS_FETCH, Trim$(lstCmds.List(lstCmds.ListIndex)), Round(Timer - dblTimer, 2))
+            pvStatus = Printf(STR_STATUS_SUCCESS_FETCH, Trim$(lstCmds.List(lstCmds.ListIndex)), Format$(DateTimer - dblTimer, "0.000"))
         End If
         lVisibleFrame = lstCmds.ListIndex
     Else
@@ -3256,7 +3265,7 @@ Private Sub cmdSave_Click(Index As Integer)
     
     On Error GoTo EH
     Screen.MousePointer = vbHourglass
-    dblTimer = Timer
+    dblTimer = DateTimer
     If Not m_oFP.IsConnected And lstCmds.ListIndex <> ucsCmdConnect Then
         pvStatus = STR_STATUS_CONNECTING
         On Error Resume Next
@@ -3273,7 +3282,7 @@ Private Sub cmdSave_Click(Index As Integer)
         End If
         If pvFetchData(lstCmds.ListIndex) Then
             If pvStatus = STR_STATUS_SAVING & " " & STR_STATUS_FETCHING Then
-                pvStatus = Printf(STR_STATUS_SUCCESS_SAVE, Trim$(lstCmds.List(lstCmds.ListIndex)), Round(Timer - dblTimer, 2))
+                pvStatus = Printf(STR_STATUS_SUCCESS_SAVE, Trim$(lstCmds.List(lstCmds.ListIndex)), Format$(DateTimer - dblTimer, "0.000"))
             End If
         End If
     End If

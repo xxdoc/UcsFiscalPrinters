@@ -2348,15 +2348,21 @@ Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
 '=========================================================================
-' $Header: /UcsFiscalPrinter/Src/frmZekaSetup.frm 7     18.06.13 17:19 Wqw $
+' $Header: /UcsFiscalPrinter/Src/frmZekaSetup.frm 9     30.01.15 15:32 Wqw $
 '
 '   Unicontsoft Fiscal Printers Project
-'   Copyright (c) 2008-2013 Unicontsoft
+'   Copyright (c) 2008-2014 Unicontsoft
 '
 '   Nastrojki na FP po Zeka protocol
 '
 ' $Log: /UcsFiscalPrinter/Src/frmZekaSetup.frm $
 ' 
+' 9     30.01.15 15:32 Wqw
+' REF: format elapsed time in ms
+'
+' 8     26.11.14 19:19 Wqw
+' REF: spelling
+'
 ' 7     18.06.13 17:19 Wqw
 ' REF: break on all errors
 '
@@ -2415,7 +2421,7 @@ Private Const STR_STATUS_SUCCESS_FETCH As String = "Успешно получаване на %1 (%2
 Private Const STR_STATUS_NOT_IMPLEMENTED As String = "Не е реализирано"
 Private Const STR_STATUS_FETCH_DEP  As String = "Получаване департамент %1 от " & LNG_NUM_DEPS & "..."
 Private Const STR_STATUS_ENUM_PORTS As String = "Изброяване на налични принтери..."
-Private Const STR_STATUS_FETCH_OPER As String = "Получаване опрератор %1 от " & LNG_NUM_OPERS & "..."
+Private Const STR_STATUS_FETCH_OPER As String = "Получаване оператор %1 от " & LNG_NUM_OPERS & "..."
 Private Const STR_STATUS_PRINT      As String = "Отпечатване..."
 Private Const STR_STATUS_RESETTING  As String = "Ресет..."
 Private Const STR_LOGO_DIMENSIONS   As String = "Размер в байтове: %1"
@@ -3145,7 +3151,7 @@ Private Sub lstCmds_Click()
     
     On Error GoTo EH
     Screen.MousePointer = vbHourglass
-    dblTimer = Timer
+    dblTimer = DateTimer
     If lstCmds.ListIndex = ucsCmdSettings Or lstCmds.ListIndex = ucsCmdOperations Or lstCmds.ListIndex = ucsCmdAdmin Then
         lVisibleFrame = -1
         GoTo QH
@@ -3163,7 +3169,7 @@ Private Sub lstCmds_Click()
     pvStatus = STR_STATUS_FETCHING
     If pvFetchData(lstCmds.ListIndex) Then
         If pvStatus = STR_STATUS_FETCHING Or LenB(pvStatus) = 0 Then
-            pvStatus = Printf(STR_STATUS_SUCCESS_FETCH, Trim(lstCmds.List(lstCmds.ListIndex)), Round(Timer - dblTimer, 2))
+            pvStatus = Printf(STR_STATUS_SUCCESS_FETCH, Trim(lstCmds.List(lstCmds.ListIndex)), Format$(DateTimer - dblTimer, "0.000"))
         End If
         lVisibleFrame = lstCmds.ListIndex
     Else
@@ -3204,7 +3210,7 @@ Private Sub cmdSave_Click(Index As Integer)
     
     On Error GoTo EH
     Screen.MousePointer = vbHourglass
-    dblTimer = Timer
+    dblTimer = DateTimer
     If Not m_oFP.IsConnected And lstCmds.ListIndex <> ucsCmdConnect Then
         pvStatus = STR_STATUS_CONNECTING
         On Error Resume Next '--- checked
@@ -3221,7 +3227,7 @@ Private Sub cmdSave_Click(Index As Integer)
         End If
         If pvFetchData(lstCmds.ListIndex) Then
             If pvStatus = STR_STATUS_SAVING & " " & STR_STATUS_FETCHING Then
-                pvStatus = Printf(STR_STATUS_SUCCESS_SAVE, Trim(lstCmds.List(lstCmds.ListIndex)), Round(Timer - dblTimer, 2))
+                pvStatus = Printf(STR_STATUS_SUCCESS_SAVE, Trim(lstCmds.List(lstCmds.ListIndex)), Format$(DateTimer - dblTimer, "0.000"))
             End If
         End If
     End If

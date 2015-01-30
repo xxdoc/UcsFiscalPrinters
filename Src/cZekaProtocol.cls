@@ -12,15 +12,40 @@ Attribute VB_Creatable = True
 Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = True
 '=========================================================================
-' $Header: /UcsFiscalPrinter/Src/cZekaProtocol.cls 29    31.03.14 17:33 Wqw $
+' $Header: /UcsFiscalPrinter/Src/cZekaProtocol.cls 37    29.01.15 11:44 Wqw $
 '
 '   Unicontsoft Fiscal Printers Project
-'   Copyright (c) 2008-2014 Unicontsoft
+'   Copyright (c) 2008-2015 Unicontsoft
 '
 '   Protocol for Tremol/Zeka cash registers & FP
 '
 ' $Log: /UcsFiscalPrinter/Src/cZekaProtocol.cls $
 ' 
+' 37    29.01.15 11:44 Wqw
+' REF: open port on error clears persistent comm handle
+'
+' 36    28.01.15 15:34 Wqw
+' REF: error messages
+'
+' 35    23.01.15 17:57 Wqw
+' REF: uses persistent port global object
+'
+' 34    23.01.15 17:11 Wqw
+' REF: uses persistent com port connection
+'
+' 33    6.01.15 17:49 Wqw
+' REF: impl timeout on port open
+'
+' 32    17.12.14 16:09 Wqw
+' REF: uses to ascii for string to byte array conversion, retries on
+' handle eof (RDP serial ports)
+'
+' 31    31.07.14 16:06 Wqw
+' REF: uses epsilon for floating point comparisons
+'
+' 30    25.04.14 22:53 Wqw
+' REF: separate conf name constants
+'
 ' 29    31.03.14 17:33 Wqw
 ' ADD: Sub SetLocalizedCommand, ClearLocalizedCommand
 '
@@ -204,11 +229,8 @@ End Enum
 '=========================================================================
 
 '--- for CreateFile
-Private Const GENERIC_READ                  As Long = &H80000000
-Private Const GENERIC_WRITE                 As Long = &H40000000
-Private Const OPEN_EXISTING                 As Long = 3
-Private Const FILE_FLAG_OVERLAPPED          As Long = &H40000000
 Private Const INVALID_HANDLE_VALUE          As Long = -1
+Private Const ERROR_ACCESS_DENIED           As Long = 5
 '--- for WaitCommEvent
 Private Const EV_RXCHAR                     As Long = &H1                '  Any Character received
 '--- for WaitForMultipleObjects
@@ -216,11 +238,11 @@ Private Const WAIT_OBJECT_0                 As Long = 0
 Private Const WAIT_TIMEOUT                  As Long = 258
 '--- error codes
 Private Const ERROR_IO_PENDING              As Long = 997
+Private Const ERROR_HANDLE_EOF              As Long = 38
 '--- for PurgeComm
 Private Const PURGE_TXCLEAR                 As Long = &H4     '  Kill the transmit queue if there.
 Private Const PURGE_RXCLEAR                 As Long = &H8     '  Kill the typeahead buffer if there.
 
-Private Declare Function CreateFile Lib "kernel32" Alias "CreateFileA" (ByVal lpFileName As String, ByVal dwDesiredAccess As Long, ByVal dwShareMode As Long, ByVal lpSecurityAttributes As Long, ByVal dwCreationDisposition As Long, ByVal dwFlagsAndAttributes As Long, ByVal hTemplateFile As Long) As Long
 Private Declare Function WriteFile Lib "kernel32" (ByVal hFile As Long, lpBuffer As Any, ByVal nNumberOfBytesToWrite As Long, lpNumberOfBytesWritten As Long, lpOverlapped As Any) As Long
 Private Declare Function ReadFile Lib "kernel32" (ByVal hFile As Long, lpBuffer As Any, ByVal nNumberOfBytesToRead As Long, lpNumberOfBytesRead As Long, lpOverlapped As Any) As Long
 Private Declare Function CloseHandle Lib "kernel32" (ByVal hObject As Long) As Long
@@ -621,12 +643,12 @@ Public Function AutodetectDevices(vPorts As Variant) As Variant
             With aPorts(lIdx)
                 If Not IsArray(vRetVal(lIdx)) And LenB(At(vPorts, lIdx)) <> 0 Then
                     sError = vbNullString
-                    .hComm = pvOpenPort(At(vPorts, lIdx) & "," & vSpeed, Error:=sError)
+                    .hComm = pvOpenPort(At(vPorts, lIdx) & "," & vSpeed, 0, Error:=sError)
                     If .hComm <> INVALID_HANDLE_VALUE And LenB(sError) = 0 Then
                         .WriteOver.hEvent = CreateEvent(0, 1, 0, 0)
                         .ReadOver.hEvent = CreateEvent(0, 1, 0, 0)
                     Else
-                        Call CloseHandle(.hComm)
+                        PortWrapper.CloseComPort .hComm
                         .hComm = 0
                     End If
                 End If
@@ -688,9 +710,12 @@ Public Function AutodetectDevices(vPorts As Variant) As Variant
         Next
         For lIdx = 0 To UBound(aPorts)
             With aPorts(lIdx)
-                If .hComm <> 0 Then
-                    Call CloseHandle(.hComm)
+                PortWrapper.CloseComPort .hComm
+                .hComm = 0
+                If .WriteOver.hEvent <> 0 Then
                     Call CloseHandle(.WriteOver.hEvent)
+                End If
+                If .ReadOver.hEvent <> 0 Then
                     Call CloseHandle(.ReadOver.hEvent)
                 End If
             End With
@@ -707,6 +732,7 @@ Public Function Init( _
             Optional ByVal Timeout As Long, _
             Optional ByVal CashDeskNo As Long) As Boolean
     Const FUNC_NAME     As String = "Init"
+    Const CONF_NAME     As String = FUNC_NAME
     Dim vSplit          As Variant
     Dim sSerial         As String
     Dim eCmd            As UcsZekaCommandsEnum
@@ -716,23 +742,21 @@ Public Function Init( _
     On Error GoTo EH
     DebugLog FUNC_NAME, "sDevice=" & sDevice & ", Timeout=" & Timeout
     pvSetLastError vbNullString
-    If m_hComm <> INVALID_HANDLE_VALUE Then
-        Call CloseHandle(m_hComm)
-        m_hComm = INVALID_HANDLE_VALUE
-    End If
+    PortWrapper.CloseComPort m_hComm
+    m_hComm = INVALID_HANDLE_VALUE
     m_lTimeout = IIf(Timeout <= 0, DEF_TIMEOUT, Timeout)
     m_lCashDeskNo = IIf(CashDeskNo <= 0, 1, CashDeskNo)
     vSplit = Split(sDevice, ",")
-    m_sDevice = Trim$(At(vSplit, 0, "COM1")) & "," & C_Lng(At(vSplit, 1, "9600")) & "," & C_Lng(At(vSplit, 2, "8")) & "," & _
-        IIf(UCase$(At(vSplit, 3, "N")) = "Y", "Y", "N") & "," & C_Lng(At(vSplit, 4, "1"))
-    m_hComm = pvOpenPort(m_sDevice, m_sLastError)
+    m_sDevice = Trim$(At(vSplit, 0, "COM1")) & "," & C_Lng(At(vSplit, 1, "9600")) & "," & At(vSplit, 2) & "," & C_Lng(At(vSplit, 3, "8")) & "," & _
+        IIf(UCase$(At(vSplit, 4, "N")) = "Y", "Y", "N") & "," & C_Lng(At(vSplit, 5, "1"))
+    m_hComm = pvOpenPort(m_sDevice, m_lTimeout, m_sLastError)
     If LenB(m_sLastError) <> 0 Then
         GoTo QH
     End If
     If Not WaitDevice(-1) Then
         GoTo QH
     End If
-    pvGetCommandConfig FUNC_NAME, "InfoDiagnostics", eCmd, ucsZekCmdInfoDiagnostics, sParam, vbNullString, _
+    pvGetCommandConfig CONF_NAME, "InfoDiagnostics", eCmd, ucsZekCmdInfoDiagnostics, sParam, vbNullString, _
         "SerialIndex", lSerialIndex, 0
     m_vInfoDiagnostics = Split(pvSendCommand(m_hComm, m_lTimeout, eCmd, sParam, m_sLastError), DEF_DELIM)
     If LenB(m_sLastError) <> 0 Then
@@ -779,7 +803,7 @@ Public Function Connect() As Boolean
         pvSetLastError pvInternal(ucsErrAlreadyConnected)
         GoTo QH
     End If
-    m_hComm = pvOpenPort(m_sDevice, m_sLastError)
+    m_hComm = pvOpenPort(m_sDevice, m_lTimeout, m_sLastError)
     '--- success
     Connect = True
 QH:
@@ -798,7 +822,7 @@ Public Function Disconnect() As Boolean
         pvSetLastError pvInternal(ucsErrNotConnected)
         GoTo QH
     End If
-    Call CloseHandle(m_hComm)
+    PortWrapper.CloseComPort m_hComm
     m_hComm = INVALID_HANDLE_VALUE
     '--- success
     Disconnect = True
@@ -829,6 +853,7 @@ End Function
 
 Public Function WaitDevice(Optional ByVal Timeout As Long) As Boolean
     Const FUNC_NAME     As String = "WaitDevice"
+    Const CONF_NAME     As String = FUNC_NAME
     Dim sError          As String
     Dim eCmd            As UcsZekaCommandsEnum
     Dim sParam          As String
@@ -845,11 +870,11 @@ Public Function WaitDevice(Optional ByVal Timeout As Long) As Boolean
         dblTimer = DateTimer
         Do While DateTimer - dblTimer < Timeout / 1000
             lIter = lIter + 1
-            pvGetCommandConfig FUNC_NAME, "FastIsOnline", eCmd, ucsZekCmdFastIsOnline, sParam, vbNullString, _
+            pvGetCommandConfig CONF_NAME, "FastIsOnline", eCmd, ucsZekCmdFastIsOnline, sParam, vbNullString, _
                 "Status", sStatus, Chr$(ucsZekCmdFastIsOnline)
             If pvSendCommand(m_hComm, pvPingTimeout, eCmd, sParam, sError) = sStatus Then
                 lIter = lIter + 1
-                pvGetCommandConfig FUNC_NAME, "FastStatus", eCmd, ucsZekCmdFastStatus, sParam, vbNullString, _
+                pvGetCommandConfig CONF_NAME, "FastStatus", eCmd, ucsZekCmdFastStatus, sParam, vbNullString, _
                     "ReadyStatus", sStatus, LNG_STATUS_READY, _
                     "Delay", sDelay, 40
                 sCurrent = pvSendCommand(m_hComm, pvPingTimeout, eCmd, sParam, sError)
@@ -873,14 +898,14 @@ Public Function WaitDevice(Optional ByVal Timeout As Long) As Boolean
             End If
         Loop
     End If
-    pvGetCommandConfig FUNC_NAME, "FastIsOnline", eCmd, ucsZekCmdFastIsOnline, sParam, vbNullString, _
+    pvGetCommandConfig CONF_NAME, "FastIsOnline", eCmd, ucsZekCmdFastIsOnline, sParam, vbNullString, _
         "Status", sStatus, Chr$(ucsZekCmdFastIsOnline)
     If pvSendCommand(m_hComm, pvPingTimeout, eCmd, sParam, sError) <> sStatus Then
         pvSetLastError pvInternal(ucsErrDeviceNotOnline)
         GoTo QH
     End If
     If Timeout >= 0 Then
-        pvGetCommandConfig FUNC_NAME, "FastStatus", eCmd, ucsZekCmdFastStatus, sParam, vbNullString, _
+        pvGetCommandConfig CONF_NAME, "FastStatus", eCmd, ucsZekCmdFastStatus, sParam, vbNullString, _
             "ReadyStatus", sStatus, LNG_STATUS_READY
         sCurrent = pvSendCommand(m_hComm, pvPingTimeout, eCmd, sParam, sError)
         If LenB(sCurrent) = 0 Then
@@ -972,7 +997,7 @@ Public Function AddPLU( _
     With uRow
         .RowType = ucsRowPlu
         .PluName = RTrim$(SafeText(Name))
-        bNegative = (Round(Price, 2) * Round(Quantity, 3) < 0)
+        bNegative = (Round(Price, 2) * Round(Quantity, 3) < -DBL_EPSILON)
         .PluPrice = IIf(bNegative, -1, 1) * Round(Abs(Price), 2)
         .PluQuantity = Round(Abs(Quantity), 3)
         .PluVatGroup = LimitLong(VatGroup, 1, 8)
@@ -1029,7 +1054,7 @@ Public Function AddDiscount( _
     End If
     Select Case DiscType
     Case ucsFscDstTotal
-        AddPLU Printf(IIf(Value > 0, pvText(ucsTxtSurcharge), pvText(ucsTxtDiscount)), vbNullString), Value
+        AddPLU Printf(IIf(Value > DBL_EPSILON, pvText(ucsTxtSurcharge), pvText(ucsTxtDiscount)), vbNullString), Value
     Case ucsFscDstPlu
         For lIdx = m_lRowCount - 1 To 0 Step -1
             With m_uRow(lIdx)
@@ -1157,6 +1182,7 @@ End Function
 
 Public Function CopyLastReceipt() As Boolean
     Const FUNC_NAME     As String = "CopyLastReceipt"
+    Const CONF_NAME     As String = FUNC_NAME
     Dim eCmd            As UcsZekaCommandsEnum
     Dim sParam          As String
     Dim sPrevReceiptNo  As String
@@ -1165,7 +1191,7 @@ Public Function CopyLastReceipt() As Boolean
     
     On Error GoTo EH
     sPrevReceiptNo = GetLastReceiptNumber()
-    pvGetCommandConfig FUNC_NAME, "PrintDuplicate", eCmd, ucsZekCmdPrintDuplicate, sParam, vbNullString, _
+    pvGetCommandConfig CONF_NAME, "PrintDuplicate", eCmd, ucsZekCmdPrintDuplicate, sParam, vbNullString, _
         "PrintTimeout", lPrintTimeout, 0
     SendCommand eCmd, sParam
     If Not LenB(m_sLastError) = 0 Then
@@ -1189,11 +1215,12 @@ End Function
 
 Public Function GetClock() As Date
     Const FUNC_NAME     As String = "GetClock"
+    Const CONF_NAME     As String = FUNC_NAME
     Dim eCmd            As UcsZekaCommandsEnum
     Dim sParam          As String
     
     On Error GoTo EH
-    pvGetCommandConfig FUNC_NAME, "InfoDateTime", eCmd, ucsZekCmdInfoDateTime, sParam, vbNullString
+    pvGetCommandConfig CONF_NAME, "InfoDateTime", eCmd, ucsZekCmdInfoDateTime, sParam, vbNullString
     GetClock = C_Date(SendCommand(eCmd, sParam))
     Exit Function
 EH:
@@ -1202,13 +1229,14 @@ End Function
 
 Public Function SetClock(ByVal NewDate As Date) As Boolean
     Const FUNC_NAME     As String = "SetClock"
+    Const CONF_NAME     As String = FUNC_NAME
     Dim eCmd            As UcsZekaCommandsEnum
     Dim sParam          As String
     Dim sFormat         As String
     Dim lPrintTimeout   As Long
     
     On Error GoTo EH
-    pvGetCommandConfig FUNC_NAME, "InitDateTime", eCmd, ucsZekCmdInitDateTime, sParam, "%1", _
+    pvGetCommandConfig CONF_NAME, "InitDateTime", eCmd, ucsZekCmdInitDateTime, sParam, "%1", _
         "Format", sFormat, "dd-MM-yy hh:mm:ss", _
         "PrintTimeout", lPrintTimeout, 0
     sParam = Printf(sParam, Format$(NewDate, sFormat))
@@ -1224,6 +1252,7 @@ End Function
 
 Public Function RunXReport(ByVal ReportType As UcsFiscalReportsTypeEnum) As Boolean
     Const FUNC_NAME     As String = "RunXReport"
+    Const CONF_NAME     As String = FUNC_NAME
     Dim eCmd            As UcsZekaCommandsEnum
     Dim sParam          As String
     Dim lPrintTimeout   As Long
@@ -1234,13 +1263,13 @@ Public Function RunXReport(ByVal ReportType As UcsFiscalReportsTypeEnum) As Bool
     On Error GoTo EH
     Select Case ReportType
     Case ucsFscRstDaily
-        pvGetCommandConfig FUNC_NAME, "PrintReportDaily", eCmd, ucsZekCmdPrintReportDaily, sParam, "X", _
+        pvGetCommandConfig CONF_NAME, "PrintReportDaily", eCmd, ucsZekCmdPrintReportDaily, sParam, "X", _
             "PrintTimeout", lPrintTimeout, 0
     Case ucsFscRstDailyByItems
-        pvGetCommandConfig FUNC_NAME, "PrintReportDailyItems", eCmd, ucsZekCmdPrintReportDailyItems, sParam, "X", _
+        pvGetCommandConfig CONF_NAME, "PrintReportDailyItems", eCmd, ucsZekCmdPrintReportDailyItems, sParam, "X", _
             "PrintTimeout", lPrintTimeout, 0
     Case ucsFscRstDailyByDepartment
-        pvGetCommandConfig FUNC_NAME, "PrintReportDailyDepartments", eCmd, ucsZekCmdPrintReportDailyDepartments, sParam, "X", _
+        pvGetCommandConfig CONF_NAME, "PrintReportDailyDepartments", eCmd, ucsZekCmdPrintReportDailyDepartments, sParam, "X", _
             "PrintTimeout", lPrintTimeout, 0
     Case Else
         pvSetLastError pvInternal(ucsErrInvalidReportType)
@@ -1259,6 +1288,7 @@ End Function
 
 Public Function RunZReport(ByVal ReportType As UcsFiscalReportsTypeEnum) As Boolean
     Const FUNC_NAME     As String = "RunZReport"
+    Const CONF_NAME     As String = FUNC_NAME
     Dim eCmd            As UcsZekaCommandsEnum
     Dim sParam          As String
     Dim lPrintTimeout   As Long
@@ -1269,13 +1299,13 @@ Public Function RunZReport(ByVal ReportType As UcsFiscalReportsTypeEnum) As Bool
     On Error GoTo EH
     Select Case ReportType
     Case ucsFscRstDaily
-        pvGetCommandConfig FUNC_NAME, "PrintReportDaily", eCmd, ucsZekCmdPrintReportDaily, sParam, "Z", _
+        pvGetCommandConfig CONF_NAME, "PrintReportDaily", eCmd, ucsZekCmdPrintReportDaily, sParam, "Z", _
             "PrintTimeout", lPrintTimeout, 0
     Case ucsFscRstDailyByItems
-        pvGetCommandConfig FUNC_NAME, "PrintReportDailyItems", eCmd, ucsZekCmdPrintReportDailyItems, sParam, "Z", _
+        pvGetCommandConfig CONF_NAME, "PrintReportDailyItems", eCmd, ucsZekCmdPrintReportDailyItems, sParam, "Z", _
             "PrintTimeout", lPrintTimeout, 0
     Case ucsFscRstDailyByDepartment
-        pvGetCommandConfig FUNC_NAME, "PrintReportDailyDepartments", eCmd, ucsZekCmdPrintReportDailyDepartments, sParam, "Z", _
+        pvGetCommandConfig CONF_NAME, "PrintReportDailyDepartments", eCmd, ucsZekCmdPrintReportDailyDepartments, sParam, "Z", _
             "PrintTimeout", lPrintTimeout, 0
     Case Else
         pvSetLastError pvInternal(ucsErrInvalidReportType)
@@ -1294,6 +1324,7 @@ End Function
 
 Public Function RunPeriodReport(ByVal ReportType As UcsFiscalReportsTypeEnum, ByVal StartDate As Date, ByVal EndDate As Date) As Boolean
     Const FUNC_NAME     As String = "RunPeriodReport"
+    Const CONF_NAME     As String = FUNC_NAME
     Dim eCmd            As UcsZekaCommandsEnum
     Dim sParam          As String
     Dim sFormat         As String
@@ -1305,11 +1336,11 @@ Public Function RunPeriodReport(ByVal ReportType As UcsFiscalReportsTypeEnum, By
     On Error GoTo EH
     Select Case ReportType
     Case ucsFscRstPeriodShort
-        pvGetCommandConfig FUNC_NAME, "PrintReportByDateShort", eCmd, ucsZekCmdPrintReportByDateShort, sParam, "%1;%2", _
+        pvGetCommandConfig CONF_NAME, "PrintReportByDateShort", eCmd, ucsZekCmdPrintReportByDateShort, sParam, "%1;%2", _
             "Format", sFormat, "ddmmyy", _
             "PrintTimeout", lPrintTimeout, 0
     Case ucsFscRstPeriodDetailed
-        pvGetCommandConfig FUNC_NAME, "PrintReportByDateDetailed", eCmd, ucsZekCmdPrintReportByDateDetailed, sParam, "%1;%2", _
+        pvGetCommandConfig CONF_NAME, "PrintReportByDateDetailed", eCmd, ucsZekCmdPrintReportByDateDetailed, sParam, "%1;%2", _
             "Format", sFormat, "ddmmyy", _
             "PrintTimeout", lPrintTimeout, 0
     Case Else
@@ -1330,13 +1361,14 @@ End Function
 
 Public Function GetLastReceiptNumber() As String
     Const FUNC_NAME     As String = "GetLastReceiptNumber"
+    Const CONF_NAME     As String = FUNC_NAME
     Dim eCmd            As UcsZekaCommandsEnum
     Dim sParam          As String
     Dim lIndex          As Long
     Dim vSplit          As Variant
     
     On Error GoTo EH
-    pvGetCommandConfig FUNC_NAME, "InfoLastReceipt", eCmd, ucsZekCmdInfoLastReceipt, sParam, vbNullString, _
+    pvGetCommandConfig CONF_NAME, "InfoLastReceipt", eCmd, ucsZekCmdInfoLastReceipt, sParam, vbNullString, _
         "Index", lIndex, 0
     vSplit = Split(SendCommand(eCmd, sParam), DEF_DELIM)
     If LenB(m_sLastError) = 0 Then
@@ -1349,13 +1381,14 @@ End Function
 
 Public Function GetLastInvoiceNumber() As String
     Const FUNC_NAME     As String = "GetLastInvoiceNumber"
+    Const CONF_NAME     As String = FUNC_NAME
     Dim eCmd            As UcsZekaCommandsEnum
     Dim sParam          As String
     Dim lIndex          As Long
     Dim vSplit          As Variant
     
     On Error GoTo EH
-    pvGetCommandConfig FUNC_NAME, "InfoInvoiceNo", eCmd, ucsZekCmdInfoInvoiceNo, sParam, vbNullString, _
+    pvGetCommandConfig CONF_NAME, "InfoInvoiceNo", eCmd, ucsZekCmdInfoInvoiceNo, sParam, vbNullString, _
         "Index", lIndex, 0
     vSplit = Split(SendCommand(eCmd, sParam), DEF_DELIM)
     If LenB(m_sLastError) = 0 And IsNumeric(At(vSplit, lIndex)) Then
@@ -1368,10 +1401,11 @@ End Function
 
 Public Function GetSerialNumber() As String
     Const FUNC_NAME     As String = "GetSerialNumber"
+    Const CONF_NAME     As String = FUNC_NAME
     Dim lIndex          As Long
     
     On Error GoTo EH
-    pvGetCommandConfig FUNC_NAME, "InfoDiagnostics", 0, 0, vbNullString, vbNullString, _
+    pvGetCommandConfig CONF_NAME, "InfoDiagnostics", 0, 0, vbNullString, vbNullString, _
         "Index", lIndex, 0
     GetSerialNumber = At(m_vInfoDiagnostics, lIndex)
     Exit Function
@@ -1381,10 +1415,11 @@ End Function
 
 Public Function GetFiscalNumber() As String
     Const FUNC_NAME     As String = "GetFiscalNumber"
+    Const CONF_NAME     As String = FUNC_NAME
     Dim lIndex          As Long
     
     On Error GoTo EH
-    pvGetCommandConfig FUNC_NAME, "InfoDiagnostics", 0, 0, vbNullString, vbNullString, _
+    pvGetCommandConfig CONF_NAME, "InfoDiagnostics", 0, 0, vbNullString, vbNullString, _
         "Index", lIndex, 1
     GetFiscalNumber = At(m_vInfoDiagnostics, lIndex)
     Exit Function
@@ -1394,12 +1429,13 @@ End Function
 
 Public Function GetTaxNumber() As String
     Const FUNC_NAME     As String = "GetTaxNumber"
+    Const CONF_NAME     As String = FUNC_NAME
     Dim eCmd            As UcsZekaCommandsEnum
     Dim sParam          As String
     Dim lIndex          As Long
     
     On Error GoTo EH
-    pvGetCommandConfig FUNC_NAME, "InfoBulstat", eCmd, ucsZekCmdInfoBulstat, sParam, vbNullString, _
+    pvGetCommandConfig CONF_NAME, "InfoBulstat", eCmd, ucsZekCmdInfoBulstat, sParam, vbNullString, _
         "Index", lIndex, 0
     GetTaxNumber = At(Split(SendCommand(eCmd, sParam), DEF_DELIM), lIndex)
     Exit Function
@@ -1409,12 +1445,13 @@ End Function
 
 Public Function GetTaxCaption() As String
     Const FUNC_NAME     As String = "GetTaxCaption"
+    Const CONF_NAME     As String = FUNC_NAME
     Dim eCmd            As UcsZekaCommandsEnum
     Dim sParam          As String
     Dim lIndex          As Long
     
     On Error GoTo EH
-    pvGetCommandConfig FUNC_NAME, "InfoBulstat", eCmd, ucsZekCmdInfoBulstat, sParam, vbNullString, _
+    pvGetCommandConfig CONF_NAME, "InfoBulstat", eCmd, ucsZekCmdInfoBulstat, sParam, vbNullString, _
         "Index", lIndex, 1
     lIndex = C_Lng(At(Split(SendCommand(eCmd, sParam), DEF_DELIM), lIndex))
     GetTaxCaption = At(Split(pvText(ucsTxtBulstatCaption), DEF_DELIM), lIndex)
@@ -1425,13 +1462,14 @@ End Function
 
 Public Function GetHeaderText(ByVal Index As Long) As String
     Const FUNC_NAME     As String = "GetHeaderText"
+    Const CONF_NAME     As String = FUNC_NAME
     Dim eCmd            As UcsZekaCommandsEnum
     Dim sParam          As String
     Dim lIndex          As Long
     
     On Error GoTo EH
     If Index >= 1 And Index <= 6 Then
-        pvGetCommandConfig FUNC_NAME, "InfoHeaderFooter" & Index, eCmd, ucsZekCmdInfoHeaderFooter, sParam, C_Str(Index), _
+        pvGetCommandConfig CONF_NAME, "InfoHeaderFooter" & Index, eCmd, ucsZekCmdInfoHeaderFooter, sParam, C_Str(Index), _
             "Index", lIndex, 1
         GetHeaderText = At(Split(SendCommand(eCmd, sParam), DEF_DELIM), lIndex)
     End If
@@ -1442,13 +1480,14 @@ End Function
 
 Public Function GetFooterText(ByVal Index As Long) As String
     Const FUNC_NAME     As String = "GetFooterText"
+    Const CONF_NAME     As String = FUNC_NAME
     Dim eCmd            As UcsZekaCommandsEnum
     Dim sParam          As String
     Dim lIndex          As Long
     
     On Error GoTo EH
     If Index >= 1 And Index <= 1 Then
-        pvGetCommandConfig FUNC_NAME, "InfoHeaderFooter" & Index, eCmd, ucsZekCmdInfoHeaderFooter, sParam, C_Str(7 + Index), _
+        pvGetCommandConfig CONF_NAME, "InfoHeaderFooter" & Index, eCmd, ucsZekCmdInfoHeaderFooter, sParam, C_Str(7 + Index), _
             "Index", lIndex, 1
         GetFooterText = At(Split(SendCommand(eCmd, sParam), DEF_DELIM), lIndex)
     End If
@@ -1459,6 +1498,7 @@ End Function
 
 Public Function GetPaymentName(ByVal Index As Long) As String
     Const FUNC_NAME     As String = "GetPaymentName"
+    Const CONF_NAME     As String = FUNC_NAME
     Dim eCmd            As UcsZekaCommandsEnum
     Dim sParam          As String
     Dim lIndex          As Long
@@ -1471,7 +1511,7 @@ Public Function GetPaymentName(ByVal Index As Long) As String
     If Index >= 1 And Index <= 3 Then
         GetPaymentName = pvText(ucsTxtPaymentCash + Index - 1)
     ElseIf Index >= 4 And Index <= 5 Then
-        pvGetCommandConfig FUNC_NAME, "InfoPaymentTypes" & Index, eCmd, ucsZekCmdInfoPaymentTypes, sParam, vbNullString, _
+        pvGetCommandConfig CONF_NAME, "InfoPaymentTypes" & Index, eCmd, ucsZekCmdInfoPaymentTypes, sParam, vbNullString, _
             "Index", lIndex, Index - 1
         If LenB(m_sPaymentTypes) = 0 Then
             m_sPaymentTypes = SendCommand(eCmd, sParam)
@@ -1485,12 +1525,13 @@ End Function
 
 Public Function OpenDrawer() As Boolean
     Const FUNC_NAME     As String = "OpenDrawer"
+    Const CONF_NAME     As String = FUNC_NAME
     Dim eCmd            As UcsZekaCommandsEnum
     Dim sParam          As String
     Dim lPrintTimeout   As Long
     
     On Error GoTo EH
-    pvGetCommandConfig FUNC_NAME, "InitOpenDrawer", eCmd, ucsZekCmdInitOpenDrawer, sParam, vbNullString, _
+    pvGetCommandConfig CONF_NAME, "InitOpenDrawer", eCmd, ucsZekCmdInitOpenDrawer, sParam, vbNullString, _
         "PrintTimeout", lPrintTimeout, 0
     SendCommand eCmd, sParam
     If LenB(m_sLastError) = 0 Then
@@ -1504,6 +1545,7 @@ End Function
 
 Public Function CancelReceipt() As Boolean
     Const FUNC_NAME     As String = "CancelReceipt"
+    Const CONF_NAME     As String = FUNC_NAME
     Dim eTransCmd       As UcsZekaCommandsEnum
     Dim sTransParam     As String
     Dim lTransIndex     As Long
@@ -1513,24 +1555,24 @@ Public Function CancelReceipt() As Boolean
     Dim lPrintTimeout   As Long
     
     On Error GoTo EH
-    pvGetCommandConfig FUNC_NAME, "InfoTransaction", eTransCmd, ucsZekCmdInfoTransaction, sTransParam, vbNullString, _
+    pvGetCommandConfig CONF_NAME, "InfoTransaction", eTransCmd, ucsZekCmdInfoTransaction, sTransParam, vbNullString, _
         "Index", lTransIndex, 0, _
         "Status", lTransStatus, 0
     If C_Lng(At(Split(SendCommand(eTransCmd, sTransParam), DEF_DELIM), lTransIndex)) <> lTransStatus Then
-        pvGetCommandConfig FUNC_NAME, "NonFiscalClose", eCmd, ucsZekCmdNonFiscalClose, sParam, vbNullString, _
+        pvGetCommandConfig CONF_NAME, "NonFiscalClose", eCmd, ucsZekCmdNonFiscalClose, sParam, vbNullString, _
             "PrintTimeout", lPrintTimeout, 0
         SendCommand eCmd, sParam
         If LenB(m_sLastError) <> 0 Then
-            pvGetCommandConfig FUNC_NAME, "FiscalCancel", eCmd, ucsZekCmdFiscalCancel, sParam, vbNullString
+            pvGetCommandConfig CONF_NAME, "FiscalCancel", eCmd, ucsZekCmdFiscalCancel, sParam, vbNullString
             SendCommand eCmd, sParam
             If LenB(m_sLastError) <> 0 Then
-                pvGetCommandConfig FUNC_NAME, "FiscalPayment", eCmd, ucsZekCmdFiscalPayment, sParam, "0;0;-"
+                pvGetCommandConfig CONF_NAME, "FiscalPayment", eCmd, ucsZekCmdFiscalPayment, sParam, "0;0;-"
                 SendCommand eCmd, sParam
-                pvGetCommandConfig FUNC_NAME, "FiscalCancel", eCmd, ucsZekCmdFiscalCancel, sParam, vbNullString
+                pvGetCommandConfig CONF_NAME, "FiscalCancel", eCmd, ucsZekCmdFiscalCancel, sParam, vbNullString
                 SendCommand eCmd, sParam
             End If
             If LenB(m_sLastError) <> 0 Then
-                pvGetCommandConfig FUNC_NAME, "FiscalPayAndClose", eCmd, ucsZekCmdFiscalPayAndClose, sParam, vbNullString
+                pvGetCommandConfig CONF_NAME, "FiscalPayAndClose", eCmd, ucsZekCmdFiscalPayAndClose, sParam, vbNullString
                 SendCommand eCmd, sParam
                 If LenB(m_sLastError) <> 0 Then
                     GoTo QH
@@ -1587,6 +1629,7 @@ End Function
 
 Public Function GetTotalsByPayments() As Variant
     Const FUNC_NAME     As String = "GetTotalsByPayments"
+    Const CONF_NAME     As String = FUNC_NAME
     Dim eCmd            As UcsZekaCommandsEnum
     Dim sParam          As String
     Dim vPayments       As Variant
@@ -1595,9 +1638,9 @@ Public Function GetTotalsByPayments() As Variant
     Dim lIdx            As Long
     
     On Error GoTo EH
-    pvGetCommandConfig FUNC_NAME, "InfoRegisters4", eCmd, ucsZekCmdInfoRegisters, sParam, "4"
+    pvGetCommandConfig CONF_NAME, "InfoRegisters4", eCmd, ucsZekCmdInfoRegisters, sParam, "4"
     vPayments = Split(SendCommand(eCmd, sParam), DEF_DELIM)
-    pvGetCommandConfig FUNC_NAME, "InfoRegisters6", eCmd, ucsZekCmdInfoRegisters, sParam, "6"
+    pvGetCommandConfig CONF_NAME, "InfoRegisters6", eCmd, ucsZekCmdInfoRegisters, sParam, "6"
     vChanges = Split(SendCommand(eCmd, sParam), DEF_DELIM)
     If UBound(vPayments) > 0 Then
         ReDim vRetVal(0 To 4) As Double
@@ -1615,6 +1658,7 @@ End Function
 
 Public Function GetTotalsByVatGroups() As Variant
     Const FUNC_NAME     As String = "GetTotalsByVatGroups"
+    Const CONF_NAME     As String = FUNC_NAME
     Dim vVatGroups      As Variant
     Dim vTaxRates       As Variant
     Dim vRetVal         As Variant
@@ -1623,9 +1667,9 @@ Public Function GetTotalsByVatGroups() As Variant
     Dim sParam          As String
     
     On Error GoTo EH
-    pvGetCommandConfig FUNC_NAME, "InfoTotalsByVatGroups", eCmd, ucsZekCmdInfoTotalsByVatGroups, sParam, vbNullString
+    pvGetCommandConfig CONF_NAME, "InfoTotalsByVatGroups", eCmd, ucsZekCmdInfoTotalsByVatGroups, sParam, vbNullString
     vVatGroups = Split(SendCommand(eCmd, sParam), DEF_DELIM)
-    pvGetCommandConfig FUNC_NAME, "InfoTaxRates", eCmd, ucsZekCmdInfoTaxRates, sParam, vbNullString
+    pvGetCommandConfig CONF_NAME, "InfoTaxRates", eCmd, ucsZekCmdInfoTaxRates, sParam, vbNullString
     vTaxRates = Split(Replace(SendCommand(eCmd, sParam), "%", vbNullString), ";")
     If UBound(vVatGroups) > 0 Then
         ReDim vRetVal(0 To 7) As Variant
@@ -1643,6 +1687,7 @@ End Function
 
 Public Function GetTotalsStats() As Variant
     Const FUNC_NAME     As String = "GetTotalsStats"
+    Const CONF_NAME     As String = FUNC_NAME
     Dim eCmd            As UcsZekaCommandsEnum
     Dim sParam          As String
     Dim lIndex          As Long
@@ -1651,13 +1696,13 @@ Public Function GetTotalsStats() As Variant
     Dim dLastDate       As Date
     
     On Error GoTo EH
-    pvGetCommandConfig FUNC_NAME, "InfoRegisters1", eCmd, ucsZekCmdInfoRegisters, sParam, "1", _
+    pvGetCommandConfig CONF_NAME, "InfoRegisters1", eCmd, ucsZekCmdInfoRegisters, sParam, "1", _
         "Index", lIndex, 1
     vSplit = Split(SendCommand(eCmd, sParam), DEF_DELIM)
     lReceipts = C_Lng(At(vSplit, lIndex))
-'    pvGetCommandConfig FUNC_NAME, "InfoReportLastDate", eCmd, ucsZekCmdInfoReportLastDate, sParam, vbNullString, _
+'    pvGetCommandConfig CONF_NAME, "InfoReportLastDate", eCmd, ucsZekCmdInfoReportLastDate, sParam, vbNullString, _
 '        "Index", lIndex, 0
-    pvGetCommandConfig FUNC_NAME, "InfoRegisters4", eCmd, ucsZekCmdInfoRegisters, sParam, "5", _
+    pvGetCommandConfig CONF_NAME, "InfoRegisters4", eCmd, ucsZekCmdInfoRegisters, sParam, "5", _
         "Index", lIndex, 4
     vSplit = Split(SendCommand(eCmd, sParam), DEF_DELIM)
     dLastDate = C_Date(At(vSplit, lIndex))
@@ -1674,6 +1719,7 @@ Public Function CashDebitCredit( _
         Optional ByVal Value As Double, _
         Optional Comment As String) As Variant
     Const FUNC_NAME     As String = "CashDebitCredit"
+    Const CONF_NAME     As String = FUNC_NAME
     Dim vSplit          As Variant
     Dim vRetVal         As Variant
     Dim eCmd            As UcsZekaCommandsEnum
@@ -1683,8 +1729,8 @@ Public Function CashDebitCredit( _
     Dim lPrintTimeout   As Long
     
     On Error GoTo EH
-    If Value <> 0 Then
-        pvGetCommandConfig FUNC_NAME, "InfoParameters", eCmd, ucsZekCmdInfoParameters, sParam, vbNullString, _
+    If Abs(Value) > DBL_EPSILON Then
+        pvGetCommandConfig CONF_NAME, "InfoParameters", eCmd, ucsZekCmdInfoParameters, sParam, vbNullString, _
             "Index", lIndex, 9
         vSplit = Split(SendCommand(eCmd, sParam), DEF_DELIM)
         If C_Bool(At(vSplit, lIndex)) Then
@@ -1692,7 +1738,7 @@ Public Function CashDebitCredit( _
             OperatorCode = DEF_OPERNO
             OperatorPassword = DEF_PASSWORD
         End If
-        pvGetCommandConfig FUNC_NAME, "AdminCashDebitCredit", eCmd, ucsZekCmdAdminCashDebitCredit, sParam, "%1;%2;%3;%4@%5", _
+        pvGetCommandConfig CONF_NAME, "AdminCashDebitCredit", eCmd, ucsZekCmdAdminCashDebitCredit, sParam, "%1;%2;%3;%4@%5", _
             "Format", sFormat, "0.00", _
             "PrintTimeout", lPrintTimeout, 0
         sParam = Printf(sParam, Pad(Zn(OperatorCode, DEF_OPERNO), -m_uConfig.MaxOperCode), _
@@ -1710,7 +1756,7 @@ Public Function CashDebitCredit( _
             GoTo QH
         End If
     End If
-    pvGetCommandConfig FUNC_NAME, "InfoRegisters0", eCmd, ucsZekCmdInfoRegisters, sParam, "0"
+    pvGetCommandConfig CONF_NAME, "InfoRegisters0", eCmd, ucsZekCmdInfoRegisters, sParam, "0"
     vSplit = Split(SendCommand(eCmd, sParam), DEF_DELIM)
     If LenB(LastError) <> 0 Then
         vRetVal = EmptyDoubleArray
@@ -1718,10 +1764,10 @@ Public Function CashDebitCredit( _
     End If
     ReDim vRetVal(0 To 2) As Double
     vRetVal(0) = C_Dbl(At(vSplit, PmtNumber))
-    pvGetCommandConfig FUNC_NAME, "InfoRegisters2", eCmd, ucsZekCmdInfoRegisters, sParam, "2"
+    pvGetCommandConfig CONF_NAME, "InfoRegisters2", eCmd, ucsZekCmdInfoRegisters, sParam, "2"
     vSplit = Split(SendCommand(eCmd, sParam), DEF_DELIM)
     vRetVal(1) = C_Dbl(At(vSplit, PmtNumber))
-    pvGetCommandConfig FUNC_NAME, "InfoRegisters3", eCmd, ucsZekCmdInfoRegisters, sParam, "3"
+    pvGetCommandConfig CONF_NAME, "InfoRegisters3", eCmd, ucsZekCmdInfoRegisters, sParam, "3"
     vSplit = Split(SendCommand(eCmd, sParam), DEF_DELIM)
     vRetVal(2) = C_Dbl(At(vSplit, PmtNumber))
 QH:
@@ -1781,11 +1827,14 @@ End Sub
 
 '= private ===============================================================
 
-Private Function pvOpenPort(sDevice As String, Optional Error As String) As Long
+Private Function pvOpenPort(sDevice As String, ByVal lTimeout As Long, Optional Error As String) As Long
     Const FUNC_NAME     As String = "pvOpenPort"
     Dim vSplit          As Variant
+    Dim hComm           As Long
     Dim uTimeout        As COMMTIMEOUTS
     Dim uDCB            As DCB
+    Dim lApiError       As Long
+    Dim dblTimer        As Double
     
     On Error GoTo EH
     vSplit = Split(sDevice, ",")
@@ -1793,10 +1842,24 @@ Private Function pvOpenPort(sDevice As String, Optional Error As String) As Long
         Error = pvInternal(ucsErrNoDeviceInfoSet)
         GoTo QH
     End If
-    pvOpenPort = CreateFile("\\.\" & At(vSplit, 0), GENERIC_READ Or GENERIC_WRITE, 0, 0, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, 0)
-    If pvOpenPort = INVALID_HANDLE_VALUE Then
-        Error = Printf(pvInternal(ucsErrCreateFileFailed), GetApiErr(Err.LastDllError))
-        GoTo QH
+    hComm = PortWrapper.OpenComPort(At(vSplit, 0), At(vSplit, 2) = "P")
+    If hComm = INVALID_HANDLE_VALUE Then
+        lApiError = Err.LastDllError
+        Error = pvInternal(ucsErrCreateFileFailed) & GetApiErr(lApiError)
+        If lApiError = ERROR_ACCESS_DENIED And lTimeout <> 0 Then
+            dblTimer = DateTimer + lTimeout / 1000#
+            Do While DateTimer < dblTimer
+                Call Sleep(100)
+                hComm = PortWrapper.OpenComPort(At(vSplit, 0), At(vSplit, 2) = "P")
+                If hComm <> INVALID_HANDLE_VALUE Then
+                    Error = vbNullString
+                    Exit Do
+                End If
+            Loop
+        End If
+        If LenB(Error) <> 0 Then
+            GoTo QH
+        End If
     End If
     With uTimeout
         .ReadIntervalTimeout = -1
@@ -1805,18 +1868,22 @@ Private Function pvOpenPort(sDevice As String, Optional Error As String) As Long
         .WriteTotalTimeoutConstant = 500
         .WriteTotalTimeoutMultiplier = 1
     End With
-    If SetCommTimeouts(pvOpenPort, uTimeout) = 0 Then
+    If SetCommTimeouts(hComm, uTimeout) = 0 Then
+        PortWrapper.CloseComPort hComm, ClearPersistent:=True
         Error = Printf(pvInternal(ucsErrSetCommTimeoutsFailed), GetApiErr(Err.LastDllError))
         GoTo QH
     End If
-    If BuildCommDCB("baud=" & At(vSplit, 1, "9600") & " data=" & At(vSplit, 2, "8") & " parity=" & At(vSplit, 3, "N") & " stop=" & At(vSplit, 4, "1"), uDCB) = 0 Then
+    If BuildCommDCB("baud=" & At(vSplit, 1, 9600) & " data=" & At(vSplit, 3, 8) & " parity=" & At(vSplit, 4, "N") & " stop=" & At(vSplit, 5, 1), uDCB) = 0 Then
+        PortWrapper.CloseComPort hComm, ClearPersistent:=True
         Error = Printf(pvInternal(ucsErrBuildCommDCBFailed), GetApiErr(Err.LastDllError))
         GoTo QH
     End If
-    If SetCommState(pvOpenPort, uDCB) = 0 Then
+    If SetCommState(hComm, uDCB) = 0 Then
+        PortWrapper.CloseComPort hComm, ClearPersistent:=True
         Error = Printf(pvInternal(ucsErrSetCommStateFailed), GetApiErr(Err.LastDllError))
         GoTo QH
     End If
+    pvOpenPort = hComm
 QH:
     Exit Function
 EH:
@@ -1861,8 +1928,8 @@ RetrySend:
         '--- increment sequence
         m_lSequence = IIf(m_lSequence >= &H9F, ZFP_BASEDATA, m_lSequence + 1)
         '--- calc checksum
-        baText = StrConv(sText, vbFromUnicode)
-        For lIdx = 1 To UBound(baText)
+        baText = ToAscii(sText)
+        For lIdx = 1 To Len(sText) - 1
             lSum = lSum Xor baText(lIdx)
         Next
         '--- append checksum and terminator
@@ -1870,7 +1937,8 @@ RetrySend:
     End If
     '--- async send
     Call PurgeComm(hComm, PURGE_TXCLEAR Or PURGE_RXCLEAR)
-    lResult = WriteFile(hComm, ByVal sText, Len(sText), lWritten, uOver)
+    baText = ToAscii(sText)
+    lResult = WriteFile(hComm, baText(0), Len(sText), lWritten, uOver)
     If lResult = 0 Then
         If Err.LastDllError <> ERROR_IO_PENDING Then
             Error = Printf(pvInternal(ucsErrWriteFileFailure), GetApiErr(Err.LastDllError))
@@ -1879,11 +1947,11 @@ RetrySend:
     End If
     lResult = WaitForMultipleObjects(1, uOver.hEvent, 0, lTimeout)
     If lResult <> WAIT_OBJECT_0 Then
+        Call CancelIo(hComm)
         DebugLog FUNC_NAME, "eCmd=0x" & Hex(eCmd) & ", CancelIo after WriteFile, lResult=" & lResult & ", lTimeout=" & lTimeout
         If lResult = WAIT_TIMEOUT Then
             Error = pvInternal(ucsErrTimeoutWaitingForResponse)
         End If
-        Call CancelIo(hComm)
         GoTo QH
     End If
     '--- async read response
@@ -1905,31 +1973,39 @@ RetrySend:
         End If
         If lResult = WAIT_OBJECT_0 And (lMask And EV_RXCHAR) <> 0 Then
 InLoop:
-            sBuffer = String$(1000, 0)
-            lResult = ReadFile(hComm, ByVal sBuffer, Len(sBuffer), lActual, uOver)
-            If lResult = 0 Then
-                If Err.LastDllError <> ERROR_IO_PENDING Then
-                    DebugLog FUNC_NAME, "eCmd=0x" & Hex(eCmd) & ", ReadFile, Err.LastDllError=" & Err.LastDllError
-                    Error = Printf(pvInternal(ucsErrReadFileFailed), GetApiErr(Err.LastDllError))
-                    GoTo QH
+            Do
+                sBuffer = String$(1000, 0)
+                lActual = 0
+                lResult = ReadFile(hComm, ByVal sBuffer, Len(sBuffer), lActual, uOver)
+                If lResult = 0 Then
+                    If Err.LastDllError = ERROR_HANDLE_EOF Then
+                        lResult = WAIT_OBJECT_0
+                    Else
+                        If Err.LastDllError <> ERROR_IO_PENDING Then
+                            DebugLog FUNC_NAME, "ReadFile, eCmd=0x" & Hex(eCmd) & ", Err.LastDllError=" & Err.LastDllError
+                            Error = Printf(pvInternal(ucsErrReadFileFailed), GetApiErr(Err.LastDllError))
+                            GoTo QH
+                        End If
+                        lResult = WaitForMultipleObjects(1, uOver.hEvent, 0, lTimeout)
+                    End If
+                Else
+                    lResult = WAIT_OBJECT_0
                 End If
-                lResult = WaitForMultipleObjects(1, uOver.hEvent, 0, lTimeout)
-            Else
-                lResult = WAIT_OBJECT_0
-            End If
-            If lResult = WAIT_OBJECT_0 Then
+                If lActual = 0 Then
+                    Exit Do
+                End If
                 sText = sText & Left$(sBuffer, lActual)
-            End If
+            Loop
         End If
         If lResult <> WAIT_OBJECT_0 Then
+            Call CancelIo(hComm)
             If bLogging Then
                 DebugLog FUNC_NAME, "CancelIo after ReadFile, lResult=" & lResult & ", lTimeout=" & lTimeout
             End If
             If lResult = WAIT_TIMEOUT Then
                 Error = pvInternal(ucsErrTimeoutWaitingForResponse)
             End If
-            Call CancelIo(hComm)
-            Exit Do
+            GoTo QH
         End If
 RetryParse:
         If LenB(sText) <> 0 Then
@@ -1968,8 +2044,8 @@ RetryParse:
                     Exit Do
                 End If
             Case ZFP_RETRY          ' &HE
-                DebugLog FUNC_NAME, "eCmd=0x" & Hex(eCmd) & ", Retry requested, sText=" & sText
                 Call CancelIo(hComm)
+                DebugLog FUNC_NAME, "eCmd=0x" & Hex(eCmd) & ", Retry requested, sText=" & sText
                 GoTo RetrySend
             Case ZFP_NACK           ' &H15
                 Error = Printf(pvInternal(ucsErrInvalidMessageFormatOrChecksum), ToHexDump(sText))
@@ -2060,12 +2136,13 @@ End Sub
 
 Private Function pvPrintLine(vText As Variant) As Boolean
     Const FUNC_NAME     As String = "pvPrintLine"
+    Const CONF_NAME     As String = "PrintLine"
     Dim vElem           As Variant
     Dim eCmd            As UcsZekaCommandsEnum
     Dim sParam          As String
     
     On Error GoTo EH
-    pvGetCommandConfig FUNC_NAME, "PrintText", eCmd, ucsZekCmdPrintText, sParam, "%1"
+    pvGetCommandConfig CONF_NAME, "PrintText", eCmd, ucsZekCmdPrintText, sParam, "%1"
     If IsArray(vText) Then
         For Each vElem In vText
             If LenB(C_Str(vElem)) = 0 Then
@@ -2096,6 +2173,7 @@ End Function
 
 Private Function pvPrintReceipt(uCtx As UcsContext, uRow() As UcsRowData, ByVal lRowCount As Long) As Boolean
     Const FUNC_NAME     As String = "pvPrintReceipt"
+    Const CONF_NAME     As String = "PrintReceipt"
     Dim sData           As String
     Dim dblTotal        As Double
     Dim dblDisc         As Double
@@ -2116,7 +2194,7 @@ Private Function pvPrintReceipt(uCtx As UcsContext, uRow() As UcsRowData, ByVal 
         With uRow(uCtx.Row)
         Select Case .RowType
         Case ucsRowInit
-            pvGetCommandConfig FUNC_NAME, "InfoParameters", eCmd, ucsZekCmdInfoParameters, sParam, vbNullString, _
+            pvGetCommandConfig CONF_NAME, "InfoParameters", eCmd, ucsZekCmdInfoParameters, sParam, vbNullString, _
                 "Index", lIndex, 9
             vSplit = Split(SendCommand(eCmd, sParam), DEF_DELIM)
             If C_Bool(At(vSplit, lIndex)) Then
@@ -2124,7 +2202,7 @@ Private Function pvPrintReceipt(uCtx As UcsContext, uRow() As UcsRowData, ByVal 
                 .InitOperatorCode = DEF_OPERNO
                 .InitOperatorPassword = DEF_PASSWORD
             End If
-            pvGetCommandConfig FUNC_NAME, "InfoOperator", eCmd, ucsZekCmdInfoOperator, sParam, "%1", _
+            pvGetCommandConfig CONF_NAME, "InfoOperator", eCmd, ucsZekCmdInfoOperator, sParam, "%1", _
                 "Index", lIndex, 1, _
                 "PassIndex", lPassIndex, 2
             sParam = Printf(sParam, Pad(.InitOperatorCode, -m_uConfig.MaxOperCode))
@@ -2139,7 +2217,7 @@ Private Function pvPrintReceipt(uCtx As UcsContext, uRow() As UcsRowData, ByVal 
                     .InitOperatorName = Trim$(At(vSplit, lIndex))
                 End If
                 If Trim$(At(vSplit, lIndex)) <> Left$(Trim$(.InitOperatorName), m_uConfig.MaxOperName) Or LenB(Trim$(At(vSplit, lPassIndex))) = 0 Then
-                    pvGetCommandConfig FUNC_NAME, "InitOperator", eCmd, ucsZekCmdInitOperator, sParam, "%1;%2;%3"
+                    pvGetCommandConfig CONF_NAME, "InitOperator", eCmd, ucsZekCmdInitOperator, sParam, "%1;%2;%3"
                     sParam = Printf(sParam, Pad(.InitOperatorCode, -m_uConfig.MaxOperCode), _
                         Pad(.InitOperatorName, m_uConfig.MaxOperName), _
                         Pad(.InitOperatorPassword, m_uConfig.MaxOperPassword))
@@ -2152,7 +2230,7 @@ Private Function pvPrintReceipt(uCtx As UcsContext, uRow() As UcsRowData, ByVal 
                 End If
                 '--- setup invoice no
                 If .InitReceiptType = ucsFscRetInvoiceFiscal And C_Lng(.InitInvData(ucsInvNumber)) <> 0 Then
-                    pvGetCommandConfig FUNC_NAME, "InitInvoiceNo", eCmd, ucsZekCmdInitInvoiceNo, sParam, "%1;%1"
+                    pvGetCommandConfig CONF_NAME, "InitInvoiceNo", eCmd, ucsZekCmdInitInvoiceNo, sParam, "%1;%1"
                     sParam = Printf(sParam, Pad(C_Lng(.InitInvData(ucsInvNumber)), -m_uConfig.MaxInvoiceNo))
                     SendCommand eCmd, sParam
                     If LenB(m_sLastError) <> 0 Then
@@ -2160,7 +2238,7 @@ Private Function pvPrintReceipt(uCtx As UcsContext, uRow() As UcsRowData, ByVal 
                     End If
                 End If
                 '--- setup fiscal receipt
-                pvGetCommandConfig FUNC_NAME, "FiscalOpen" & .InitReceiptType, eCmd, ucsZekCmdFiscalOpen, _
+                pvGetCommandConfig CONF_NAME, "FiscalOpen" & .InitReceiptType, eCmd, ucsZekCmdFiscalOpen, _
                     sParam, "%1;%2;%3;0;%4" & IIf(.InitReceiptType = ucsFscRetInvoiceFiscal, ";%5;%6;%7;%8;%9", vbNullString)
                 sParam = Printf(sParam, Pad(.InitOperatorCode, -m_uConfig.MaxOperCode), _
                     Pad(.InitOperatorPassword, m_uConfig.MaxOperPassword), _
@@ -2181,7 +2259,7 @@ Private Function pvPrintReceipt(uCtx As UcsContext, uRow() As UcsRowData, ByVal 
                     .InitOperatorName = Trim$(At(vSplit, lIndex))
                 End If
                 '--- setup non-fiscal receipt
-                pvGetCommandConfig FUNC_NAME, "NonFiscalOpen" & .InitReceiptType, eCmd, ucsZekCmdNonFiscalOpen, sParam, "%1;%2"
+                pvGetCommandConfig CONF_NAME, "NonFiscalOpen" & .InitReceiptType, eCmd, ucsZekCmdNonFiscalOpen, sParam, "%1;%2"
                 sParam = Printf(sParam, Pad(.InitOperatorCode, -m_uConfig.MaxOperCode), Pad(.InitOperatorPassword, m_uConfig.MaxOperPassword))
                 SendCommand eCmd, sParam
                 If LenB(m_sLastError) <> 0 Then
@@ -2211,7 +2289,7 @@ Private Function pvPrintReceipt(uCtx As UcsContext, uRow() As UcsRowData, ByVal 
             End If
             Select Case .PrintRowType
             Case ucsFscRetFiscal, ucsFscRetInvoiceFiscal
-                pvGetCommandConfig FUNC_NAME, "FiscalSell" & .InitReceiptType, eCmd, ucsZekCmdFiscalSell, sParam, "%1", _
+                pvGetCommandConfig CONF_NAME, "FiscalSell" & .InitReceiptType, eCmd, ucsZekCmdFiscalSell, sParam, "%1", _
                     "FormatPrice", sFormatPrice, "0.00", _
                     "FormatQty", sFormatQty, "0.000", _
                     "FormatDisc", sFormatDisc, "0.00"
@@ -2223,12 +2301,12 @@ Private Function pvPrintReceipt(uCtx As UcsContext, uRow() As UcsRowData, ByVal 
                 Next
                 sData = Pad(At(vSplit, UBound(vSplit)), m_uConfig.MaxPluName)
                 sData = sData & ";" & Chr$(191 + .PluVatGroup) & ";"
-                If .PluQuantity <> 0 Then
+                If Abs(.PluQuantity) > DBL_EPSILON Then
                     sData = sData & SafeFormat(.PluPrice, sFormatPrice)
                     If .PluQuantity <> 1 Then
                         sData = sData & "*" & SafeFormat(.PluQuantity, sFormatQty)
                     End If
-                    If .DiscType = ucsFscDstPlu And .PluPrice >= 0 Then
+                    If .DiscType = ucsFscDstPlu And Abs(.PluPrice) > DBL_EPSILON Then
                         sData = sData & "," & SafeFormat(.DiscValue, sFormatDisc)
                     End If
                 Else
@@ -2237,12 +2315,12 @@ Private Function pvPrintReceipt(uCtx As UcsContext, uRow() As UcsRowData, ByVal 
                 sParam = Printf(sParam, sData)
                 SendCommand eCmd, sParam
             Case ucsFscRetNonfiscal, ucsFscRetInvoiceNonfiscal
-                pvGetCommandConfig FUNC_NAME, "NonFiscalSell" & .PrintRowType, 0, 0, vbNullString, vbNullString, _
+                pvGetCommandConfig CONF_NAME, "NonFiscalSell" & .PrintRowType, 0, 0, vbNullString, vbNullString, _
                     "FormatPrice", sFormatPrice, "0.00", _
                     "FormatQty", sFormatQty, "0.000", _
                     "FormatDisc", sFormatDisc, "0.00", _
                     "FormatAmount", sFormatAmount, "0.00"
-                If .PluPrice < 0 Then
+                If .PluPrice < -DBL_EPSILON Then
                     pvPrintLine CenterText(pvText(ucsTxtPluVoid), pvRowChars)
                 End If
                 If .PrintRowType = ucsFscRetNonfiscal Then
@@ -2261,10 +2339,10 @@ Private Function pvPrintReceipt(uCtx As UcsContext, uRow() As UcsRowData, ByVal 
                     pvPrintLine AlignText(Printf(pvText(ucsTxtPluTotal), Chr$(191 + .PluVatGroup)), SafeFormat(Abs(dblTotal), sFormatAmount), pvRowChars)
                 End If
                 If .DiscType = ucsFscDstPlu Then
-                    pvPrintLine AlignText(Printf(IIf(IIf(.PluPrice < 0, -1, 1) * dblDisc > 0, pvText(ucsTxtSurcharge), pvText(ucsTxtDiscount)), "*" & Chr$(191 + .PluVatGroup) & "  " & SafeFormat(Abs(.DiscValue), sFormatDisc) & "%"), _
-                        SafeFormat(IIf(.PluPrice < 0, -1, 1) * dblDisc, sFormatAmount), pvRowChars)
+                    pvPrintLine AlignText(Printf(IIf(IIf(.PluPrice < -DBL_EPSILON, -1, 1) * dblDisc > DBL_EPSILON, pvText(ucsTxtSurcharge), pvText(ucsTxtDiscount)), "*" & Chr$(191 + .PluVatGroup) & "  " & SafeFormat(Abs(.DiscValue), sFormatDisc) & "%"), _
+                        SafeFormat(IIf(.PluPrice < -DBL_EPSILON, -1, 1) * dblDisc, sFormatAmount), pvRowChars)
                 End If
-                If .PluPrice < 0 Then
+                If .PluPrice < -DBL_EPSILON Then
                     pvPrintLine CenterText(String(pvRowChars - 10, "-"), pvRowChars)
                 End If
             End Select
@@ -2272,21 +2350,21 @@ Private Function pvPrintReceipt(uCtx As UcsContext, uRow() As UcsRowData, ByVal 
             Select Case .PrintRowType
             Case ucsFscRetFiscal, ucsFscRetInvoiceFiscal
                 If .DiscType = ucsFscDstSubtotal Then
-                    pvGetCommandConfig FUNC_NAME, "FiscalSubtotal" & .DiscType, eCmd, ucsZekCmdFiscalSubtotal, sParam, "1;0,%1", _
+                    pvGetCommandConfig CONF_NAME, "FiscalSubtotal" & .DiscType, eCmd, ucsZekCmdFiscalSubtotal, sParam, "1;0,%1", _
                         "FormatDisc", sFormatDisc, "0.00"
                     sParam = Printf(sParam, SafeFormat(.DiscValue, sFormatDisc))
                     SendCommand eCmd, sParam
                 End If
             Case ucsFscRetNonfiscal, ucsFscRetInvoiceNonfiscal
                 If .DiscType = ucsFscDstSubtotal Then
-                    pvGetCommandConfig FUNC_NAME, "NonFiscalSubtotal" & .DiscType, 0, 0, vbNullString, vbNullString, _
+                    pvGetCommandConfig CONF_NAME, "NonFiscalSubtotal" & .DiscType, 0, 0, vbNullString, vbNullString, _
                         "FormatDisc", sFormatDisc, "0.00", _
                         "FormatAmount", sFormatAmount, "0.00"
                     pvPrintLine AlignText(pvText(ucsTxtSubTotal), SafeFormat(SumArray(uCtx.GrpTotal), sFormatAmount), pvRowChars)
                     For lIdx = 1 To UBound(uCtx.GrpTotal)
-                        If uCtx.GrpTotal(lIdx) <> 0 Then
+                        If Abs(uCtx.GrpTotal(lIdx)) > DBL_EPSILON Then
                             dblTotal = Round(uCtx.GrpTotal(lIdx) * .DiscValue / 100#, 2)
-                            pvPrintLine AlignText(Printf(IIf(dblTotal > 0, pvText(ucsTxtSurcharge), pvText(ucsTxtDiscount)), "*" & Chr$(191 + lIdx) & "  " & SafeFormat(Abs(.DiscValue), sFormatDisc) & "%"), _
+                            pvPrintLine AlignText(Printf(IIf(dblTotal > DBL_EPSILON, pvText(ucsTxtSurcharge), pvText(ucsTxtDiscount)), "*" & Chr$(191 + lIdx) & "  " & SafeFormat(Abs(.DiscValue), sFormatDisc) & "%"), _
                                 SafeFormat(dblTotal, sFormatAmount), pvRowChars)
                         End If
                     Next
@@ -2294,7 +2372,7 @@ Private Function pvPrintReceipt(uCtx As UcsContext, uRow() As UcsRowData, ByVal 
             End Select
             If .DiscType = ucsFscDstSubtotal Then
                 For lIdx = 1 To UBound(uCtx.GrpTotal)
-                    If uCtx.GrpTotal(lIdx) <> 0 Then
+                    If Abs(uCtx.GrpTotal(lIdx)) > DBL_EPSILON Then
                         dblTotal = Round(uCtx.GrpTotal(lIdx) * .DiscValue / 100#, 2)
                         uCtx.GrpTotal(lIdx) = Round(uCtx.GrpTotal(lIdx) + dblTotal, 2)
                     End If
@@ -2312,9 +2390,9 @@ Private Function pvPrintReceipt(uCtx As UcsContext, uRow() As UcsRowData, ByVal 
             Case ucsFscRetNonfiscal, ucsFscRetInvoiceNonfiscal
                 If uCtx.PmtPrinted And Not uCtx.ChangePrinted Then
                     dblTotal = Round(SumArray(uCtx.GrpTotal) - uCtx.Paid, 2)
-                    If dblTotal > 0 Then
+                    If dblTotal > DBL_EPSILON Then
                         pvPrintLine AlignText(GetPaymentName(1), SafeFormat(dblTotal, "0.00"), pvRowChars)
-                    ElseIf dblTotal < 0 Then
+                    ElseIf dblTotal < -DBL_EPSILON Then
                         pvPrintLine AlignText(pvText(ucsTxtFooterChange), SafeFormat(-dblTotal, "0.00"), pvRowChars)
                     End If
                     uCtx.ChangePrinted = True
@@ -2329,18 +2407,18 @@ Private Function pvPrintReceipt(uCtx As UcsContext, uRow() As UcsRowData, ByVal 
         Case ucsRowPayment
             Select Case .PrintRowType
             Case ucsFscRetFiscal, ucsFscRetInvoiceFiscal
-                pvGetCommandConfig FUNC_NAME, "InfoTransaction", eCmd, ucsZekCmdInfoTransaction, sParam, vbNullString, _
+                pvGetCommandConfig CONF_NAME, "InfoTransaction", eCmd, ucsZekCmdInfoTransaction, sParam, vbNullString, _
                     "Index", lIndex, 0
                 vSplit = Split(SendCommand(eCmd, sParam), DEF_DELIM)
                 If LenB(m_sLastError) <> 0 Then
                     GoTo QH
                 End If
                 If .PmtType <> 0 Then
-                    pvGetCommandConfig FUNC_NAME, "FiscalPayment" & .PmtType, eCmd, ucsZekCmdFiscalPayment, sParam, (.PmtType - 1) & ";0;%1", _
+                    pvGetCommandConfig CONF_NAME, "FiscalPayment" & .PmtType, eCmd, ucsZekCmdFiscalPayment, sParam, (.PmtType - 1) & ";0;%1", _
                         "FormatAmount", sFormatAmount, "0.00"
                     sParam = Printf(sParam, SafeFormat(.PmtAmount, sFormatAmount))
                 ElseIf C_Lng(At(vSplit, lIndex)) <> 0 Then
-                    pvGetCommandConfig FUNC_NAME, "FiscalPayAndClose", eCmd, ucsZekCmdFiscalPayAndClose, sParam, vbNullString
+                    pvGetCommandConfig CONF_NAME, "FiscalPayAndClose", eCmd, ucsZekCmdFiscalPayAndClose, sParam, vbNullString
                 End If
                 SendCommand eCmd, sParam
                 If LenB(m_sLastError) <> 0 Then
@@ -2348,7 +2426,7 @@ Private Function pvPrintReceipt(uCtx As UcsContext, uRow() As UcsRowData, ByVal 
                 End If
                 uCtx.PmtPrinted = True
             Case ucsFscRetNonfiscal, ucsFscRetInvoiceNonfiscal
-                pvGetCommandConfig FUNC_NAME, "NonFiscalFooter", 0, 0, vbNullString, vbNullString, _
+                pvGetCommandConfig CONF_NAME, "NonFiscalFooter", 0, 0, vbNullString, vbNullString, _
                     "FormatAmount", sFormatAmount, "0.00"
                 If Not uCtx.PmtPrinted Then
                     If uCtx.PluCount > 0 Or .PmtType <> 0 Then
@@ -2356,13 +2434,13 @@ Private Function pvPrintReceipt(uCtx As UcsContext, uRow() As UcsRowData, ByVal 
                         pvPrintLine AlignText(pvText(ucsTxtFooterTotal), SafeFormat(SumArray(uCtx.GrpTotal), sFormatAmount), pvRowChars)
                         If .PrintRowType = ucsFscRetInvoiceNonfiscal Then
                             '--- print invoice totals by VAT group
-                            pvGetCommandConfig FUNC_NAME, "InfoTaxRates", eCmd, ucsZekCmdInfoTaxRates, sParam, vbNullString
+                            pvGetCommandConfig CONF_NAME, "InfoTaxRates", eCmd, ucsZekCmdInfoTaxRates, sParam, vbNullString
                             vSplit = Split(Replace(SendCommand(eCmd, sParam), "%", vbNullString), DEF_DELIM)
                             If LenB(m_sLastError) <> 0 Then
                                 GoTo QH
                             End If
                             For lIdx = 1 To UBound(uCtx.GrpTotal)
-                                If uCtx.GrpTotal(lIdx) <> 0 Then
+                                If Abs(uCtx.GrpTotal(lIdx)) > DBL_EPSILON Then
                                     dblTotal = Round(uCtx.GrpTotal(lIdx) / (1 + C_Dbl(At(vSplit, lIdx - 1)) / 100#), 2)
                                     pvPrintLine AlignText(Printf(pvText(ucsTxtGroupTotal), Chr$(191 + lIdx)), SafeFormat(uCtx.GrpTotal(lIdx), sFormatAmount), pvRowChars)
                                     pvPrintLine AlignText(Printf(pvText(ucsTxtGroupVat), Chr$(191 + lIdx), SafeFormat(C_Dbl(At(vSplit, lIdx - 1)), sFormatAmount) & "%"), _
@@ -2383,9 +2461,9 @@ Private Function pvPrintReceipt(uCtx As UcsContext, uRow() As UcsRowData, ByVal 
                 Else
                     If uCtx.PmtPrinted And Not uCtx.ChangePrinted Then
                         dblTotal = Round(SumArray(uCtx.GrpTotal) - uCtx.Paid, 2)
-                        If dblTotal > 0 Then
+                        If dblTotal > DBL_EPSILON Then
                             pvPrintLine AlignText(GetPaymentName(1), SafeFormat(dblTotal, sFormatAmount), pvRowChars)
-                        ElseIf dblTotal < 0 Then
+                        ElseIf dblTotal < -DBL_EPSILON Then
                             pvPrintLine AlignText(pvText(ucsTxtFooterChange), SafeFormat(-dblTotal, sFormatAmount), pvRowChars)
                         End If
                         uCtx.ChangePrinted = True
@@ -2420,7 +2498,7 @@ Private Function pvPrintReceipt(uCtx As UcsContext, uRow() As UcsRowData, ByVal 
                         sData = IIf(uCtx.PluCount = 1, pvText(ucsTxtFooterArticleSingle), Printf(pvText(ucsTxtFooterArticles), uCtx.PluCount))
                         pvPrintLine AlignText(vbNullString, sData, pvRowChars)
                     End If
-                    pvGetCommandConfig FUNC_NAME, "NonFiscalClose" & .PrintRowType, eCmd, ucsZekCmdNonFiscalClose, sParam, vbNullString
+                    pvGetCommandConfig CONF_NAME, "NonFiscalClose" & .PrintRowType, eCmd, ucsZekCmdNonFiscalClose, sParam, vbNullString
                     SendCommand eCmd, sParam
                     If LenB(m_sLastError) <> 0 Then
                         GoTo QH
@@ -2477,16 +2555,16 @@ Private Sub pvConvertExtraRows()
                         dblDiscount = m_uRow(lRow).DiscValue
                         m_uRow(lRow).DiscType = 0
                         m_uRow(lRow).DiscValue = 0
-                        AddPLU Printf(IIf(dblTotal * dblDiscount > 0, pvText(ucsTxtSurcharge), pvText(ucsTxtDiscount)), "*" & Chr$(191 + m_uRow(lRow).PluVatGroup) & "  " & SafeFormat(Abs(dblDiscount), "0.00") & "%"), _
+                        AddPLU Printf(IIf(dblTotal * dblDiscount > DBL_EPSILON, pvText(ucsTxtSurcharge), pvText(ucsTxtDiscount)), "*" & Chr$(191 + m_uRow(lRow).PluVatGroup) & "  " & SafeFormat(Abs(dblDiscount), "0.00") & "%"), _
                             Round(dblTotal * dblDiscount / 100#, 2), 1, m_uRow(lRow).PluVatGroup, lRow + 1
                     End If
-                ElseIf m_uRow(lRow).DiscType = ucsFscDstPlu And m_uRow(lRow).PluPrice < 0 Then
+                ElseIf m_uRow(lRow).DiscType = ucsFscDstPlu And m_uRow(lRow).PluPrice < -DBL_EPSILON Then
                     '--- convert PLU discount on void rows
                     dblTotal = Round(m_uRow(lRow).PluQuantity * m_uRow(lRow).PluPrice, 2)
                     dblDiscount = m_uRow(lRow).DiscValue
                     m_uRow(lRow).DiscType = 0
                     m_uRow(lRow).DiscValue = 0
-                    AddPLU Printf(IIf(dblTotal * dblDiscount > 0, pvText(ucsTxtSurcharge), pvText(ucsTxtDiscount)), "*" & Chr$(191 + m_uRow(lRow).PluVatGroup) & "  " & SafeFormat(Abs(dblDiscount), "0.00") & "%"), _
+                    AddPLU Printf(IIf(dblTotal * dblDiscount > DBL_EPSILON, pvText(ucsTxtSurcharge), pvText(ucsTxtDiscount)), "*" & Chr$(191 + m_uRow(lRow).PluVatGroup) & "  " & SafeFormat(Abs(dblDiscount), "0.00") & "%"), _
                             Round(dblTotal * dblDiscount / 100#, 2), 1, m_uRow(lRow).PluVatGroup, lRow + 1
                 End If
             ElseIf m_uRow(lRow).RowType = ucsRowDiscount Then
@@ -2505,8 +2583,8 @@ Private Sub pvConvertExtraRows()
                         dblDiscount = m_uRow(lRow).DiscValue
                         m_uRow(lRow).DiscValue = 0
                         For lIdx = UBound(uSum.GrpTotal) To 1 Step -1
-                            If uSum.GrpTotal(lIdx) <> 0 Then
-                                AddPLU Printf(IIf(uSum.GrpTotal(lIdx) * dblDiscount > 0, pvText(ucsTxtSurcharge), pvText(ucsTxtDiscount)), "*" & Chr$(191 + lIdx) & "  " & SafeFormat(Abs(dblDiscount), "0.00") & "%"), _
+                            If Abs(uSum.GrpTotal(lIdx)) > DBL_EPSILON Then
+                                AddPLU Printf(IIf(uSum.GrpTotal(lIdx) * dblDiscount > DBL_EPSILON, pvText(ucsTxtSurcharge), pvText(ucsTxtDiscount)), "*" & Chr$(191 + lIdx) & "  " & SafeFormat(Abs(dblDiscount), "0.00") & "%"), _
                                     Round(uSum.GrpTotal(lIdx) * dblDiscount / 100#, 2), 1, lIdx, lRow + 1
                             End If
                         Next
@@ -2529,7 +2607,7 @@ Private Sub pvConvertExtraRows()
     If lCount > m_uConfig.MaxReceiptRows Then
         '--- count different VAT groups in PLUs
         For lRow = 1 To UBound(uCtx.GrpTotal)
-            If uCtx.GrpTotal(lRow) <> 0 Then
+            If Abs(uCtx.GrpTotal(lRow)) > DBL_EPSILON Then
                 lTotal = lTotal + 1
                 uCtx.GrpTotal(lRow) = 0
             End If
@@ -2569,7 +2647,7 @@ Private Sub pvConvertExtraRows()
         Next
         '--- append fiscal rows for GrpTotal by VAT groups
         For lIdx = 1 To UBound(uCtx.GrpTotal)
-            If uCtx.GrpTotal(lIdx) <> 0 Then
+            If Abs(uCtx.GrpTotal(lIdx)) > DBL_EPSILON Then
                 AddPLU Printf(pvText(ucsTxtPluSales), Chr$(191 + lIdx)), uCtx.GrpTotal(lIdx), 1, lIdx, lRow
                 lRow = lRow + 1
             End If
@@ -2626,6 +2704,7 @@ End Function
 
 Private Function pvGetDeviceInfo(ByVal hComm As Long, ByVal lTimeout As Long, vResult As Variant, sProtocol As String, sModel As String, Optional Error As String) As Boolean
     Const FUNC_NAME     As String = "pvGetDeviceInfo"
+    Const CONF_NAME     As String = "GetDeviceInfo"
     Dim vSplit          As Variant
     Dim eCmd            As UcsZekaCommandsEnum
     Dim sParam          As String
@@ -2635,14 +2714,14 @@ Private Function pvGetDeviceInfo(ByVal hComm As Long, ByVal lTimeout As Long, vR
     Dim sSuffix         As String
     
     On Error GoTo EH
-    pvGetCommandConfig FUNC_NAME, "InfoDiagnostics", eCmd, ucsZekCmdInfoDiagnostics, sParam, vbNullString, _
+    pvGetCommandConfig CONF_NAME, "InfoDiagnostics", eCmd, ucsZekCmdInfoDiagnostics, sParam, vbNullString, _
         "SerialIndex", lSerialIndex, 0
     If Not IsArray(vResult) Then
         vResult = Split(pvSendCommand(hComm, lTimeout, eCmd, sParam, Error), DEF_DELIM)
     End If
     If LenB(At(vResult, lSerialIndex)) <> 0 Then
         sProtocol = STR_PROTOCOL_ZEKA_FP
-        pvGetCommandConfig FUNC_NAME, "InfoVersion", eCmd, ucsZekCmdInfoVersion, sParam, vbNullString, _
+        pvGetCommandConfig CONF_NAME, "InfoVersion", eCmd, ucsZekCmdInfoVersion, sParam, vbNullString, _
             "RegDateIndex", lRegDateIndex, 3, _
             "ModelIndex", lModelIndex, 4, _
             "Suffix", sSuffix, "Ê.Ñ."
@@ -2702,10 +2781,8 @@ Private Sub Class_Initialize()
 End Sub
 
 Private Sub Class_Terminate()
-    If m_hComm <> INVALID_HANDLE_VALUE Then
-        Call CloseHandle(m_hComm)
-        m_hComm = INVALID_HANDLE_VALUE
-    End If
+    PortWrapper.CloseComPort m_hComm
+    m_hComm = INVALID_HANDLE_VALUE
 End Sub
 
 '=========================================================================

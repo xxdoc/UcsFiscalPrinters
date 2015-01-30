@@ -12,15 +12,34 @@ Attribute VB_Creatable = True
 Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = True
 '=========================================================================
-' $Header: /UcsFiscalPrinter/Src/cEltradeProtocol.cls 30    20.06.13 12:49 Wqw $
+' $Header: /UcsFiscalPrinter/Src/cEltradeProtocol.cls 36    30.01.15 15:07 Wqw $
 '
 '   Unicontsoft Fiscal Printers Project
-'   Copyright (c) 2008-2013 Unicontsoft
+'   Copyright (c) 2008-2015 Unicontsoft
 '
 '   Protocol for Eltrade cash registers
 '
 ' $Log: /UcsFiscalPrinter/Src/cEltradeProtocol.cls $
 ' 
+' 36    30.01.15 15:07 Wqw
+' REF: uses decimal separator property
+'
+' 35    29.01.15 11:44 Wqw
+' REF: open port on error clears persistent comm handle
+'
+' 34    28.01.15 15:34 Wqw
+' REF: error messages
+'
+' 33    23.01.15 17:57 Wqw
+' REF: uses persistent port global object
+'
+' 32    23.01.15 17:11 Wqw
+' REF: uses persistent com port connection
+'
+' 31    17.12.14 16:09 Wqw
+' REF: uses to ascii for string to byte array conversion, retries on
+' handle eof (RDP serial ports)
+'
 ' 30    20.06.13 12:49 Wqw
 ' REF: handle custom payment types in AddPayment and GetPaymentName
 '
@@ -181,10 +200,6 @@ End Enum
 '=========================================================================
 
 '--- for CreateFile
-Private Const GENERIC_READ                  As Long = &H80000000
-Private Const GENERIC_WRITE                 As Long = &H40000000
-Private Const OPEN_EXISTING                 As Long = 3
-Private Const FILE_FLAG_OVERLAPPED          As Long = &H40000000
 Private Const INVALID_HANDLE_VALUE          As Long = -1
 '--- for WaitCommEvent
 Private Const EV_RXCHAR                     As Long = &H1                '  Any Character received
@@ -193,18 +208,17 @@ Private Const WAIT_OBJECT_0                 As Long = 0
 Private Const WAIT_TIMEOUT                  As Long = 258
 '--- error codes
 Private Const ERROR_IO_PENDING              As Long = 997
+Private Const ERROR_HANDLE_EOF              As Long = 38
 '--- for PurgeComm
 Private Const PURGE_TXCLEAR                 As Long = &H4     '  Kill the transmit queue if there.
 Private Const PURGE_RXCLEAR                 As Long = &H8     '  Kill the typeahead buffer if there.
 
-Private Declare Function CreateFile Lib "kernel32" Alias "CreateFileA" (ByVal lpFileName As String, ByVal dwDesiredAccess As Long, ByVal dwShareMode As Long, ByVal lpSecurityAttributes As Long, ByVal dwCreationDisposition As Long, ByVal dwFlagsAndAttributes As Long, ByVal hTemplateFile As Long) As Long
 Private Declare Function WriteFile Lib "kernel32" (ByVal hFile As Long, lpBuffer As Any, ByVal nNumberOfBytesToWrite As Long, lpNumberOfBytesWritten As Long, ByVal lpOverlapped As Long) As Long
 Private Declare Function ReadFile Lib "kernel32" (ByVal hFile As Long, lpBuffer As Any, ByVal nNumberOfBytesToRead As Long, lpNumberOfBytesRead As Long, ByVal lpOverlapped As Long) As Long
 Private Declare Function CloseHandle Lib "kernel32" (ByVal hObject As Long) As Long
 Private Declare Function SetCommTimeouts Lib "kernel32" (ByVal hFile As Long, lpCommTimeouts As COMMTIMEOUTS) As Long
 Private Declare Function BuildCommDCB Lib "kernel32" Alias "BuildCommDCBA" (ByVal lpDef As String, lpDCB As DCB) As Long
 Private Declare Function SetCommState Lib "kernel32" (ByVal hCommDev As Long, lpDCB As DCB) As Long
-'Private Declare Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (Destination As Any, Source As Any, ByVal Length As Long)
 Private Declare Function SetCommMask Lib "kernel32" (ByVal hFile As Long, ByVal dwEvtMask As Long) As Long
 Private Declare Function WaitCommEvent Lib "kernel32" (ByVal hFile As Long, lpEvtMask As Long, lpOverlapped As OVERLAPPED) As Long
 Private Declare Function CreateEvent Lib "kernel32" Alias "CreateEventA" (ByVal lpEventAttributes As Long, ByVal bManualReset As Long, ByVal bInitialState As Long, ByVal lpName As Long) As Long
@@ -264,7 +278,7 @@ End Type
 ' Constants and member variables
 '=========================================================================
 
-Private Const STR_INTERNAL_ERRORS       As String = "No device info set|CreateFile failed: |SetCommTimeouts failed: |BuildCommDCB failed: |SetCommState failed: |WriteFile failure: |Timeout waiting for response|ReadFile failed: |Already connected|Not connected|Invalid response header|WaitCommEvent failed: |No receipt started|Out of paper|Invalid 'Command' parameter|Invalid command for duplicate receipt|Printing error|Fatal error|Cannot cancel previous receipt|Error in line %1: %2"
+Private Const STR_INTERNAL_ERRORS       As String = "No device info set|CreateFile failed: %1|SetCommTimeouts failed: %1|BuildCommDCB failed: %1|SetCommState failed: %1|WriteFile failure: %1|Timeout waiting for response|ReadFile failed: %1|Already connected|Not connected|Invalid response header|WaitCommEvent failed: %1|No receipt started|Out of paper|Invalid 'Command' parameter|Invalid command for duplicate receipt|Printing error|Fatal error|Cannot cancel previous receipt|Error in line %1: %2"
 Private Const STR_RECEIPT_TEXTS         As String = "TOTAL|SUBTOTAL|Sales %1|unit price|quantity|value*%1|CHANGE|total|VAT*%1|netto|Invoice #|Seller:|   * * * * * * * *|Received by:|Tax # |VAT # |%1 items|Resp:|Recv:|SURCHARGE|DISCOUNT"
 Private Const DEF_AUTODETECTTIMEOUT     As Long = 50
 Private Const DEF_AUTODETECTSPEEDS      As String = "9600" ' |38400|115200
@@ -529,7 +543,8 @@ Public Function AutodetectDevices(vPorts As Variant) As Variant
                         vRetVal(lIdx) = Array(At(vPorts, lIdx), vSpeed, sProtocol, sModel)
                     End If
                 End If
-                Call CloseHandle(hComm)
+                PortWrapper.CloseComPort hComm
+                hComm = 0
             End If
         Next
     Next
@@ -549,15 +564,13 @@ Public Function Init( _
     On Error GoTo EH
     DebugLog FUNC_NAME, "sDevice=" & sDevice & ", lTimeout=" & lTimeout
     pvSetLastError vbNullString
-    If m_hComm <> INVALID_HANDLE_VALUE Then
-        Call CloseHandle(m_hComm)
-        m_hComm = INVALID_HANDLE_VALUE
-    End If
+    PortWrapper.CloseComPort m_hComm
+    m_hComm = INVALID_HANDLE_VALUE
     m_lTimeout = IIf(lTimeout <= 0, DEF_TIMEOUT, lTimeout)
     m_lCashDesk = lCashDesk
     vSplit = Split(sDevice, ",")
-    m_sDevice = Trim$(At(vSplit, 0, "COM1")) & "," & C_Lng(At(vSplit, 1, "9600")) & "," & C_Lng(At(vSplit, 2, "8")) & "," & _
-        IIf(UCase$(At(vSplit, 3, "N")) = "Y", "Y", "N") & "," & C_Lng(At(vSplit, 4, "1"))
+    m_sDevice = Trim$(At(vSplit, 0, "COM1")) & "," & C_Lng(At(vSplit, 1, "9600")) & "," & At(vSplit, 2) & "," & C_Lng(At(vSplit, 3, "8")) & "," & _
+        IIf(UCase$(At(vSplit, 4, "N")) = "Y", "Y", "N") & "," & C_Lng(At(vSplit, 5, "1"))
     m_hComm = pvOpenPort(m_sDevice, m_sLastError)
     If LenB(m_sLastError) <> 0 Then
         DebugLog FUNC_NAME, "m_hComm=" & m_hComm & ", m_sLastError=" & m_sLastError
@@ -600,7 +613,7 @@ Public Function Disconnect() As Boolean
         pvSetLastError pvInternal(ucsErrNotConnected)
         GoTo QH
     End If
-    Call CloseHandle(m_hComm)
+    PortWrapper.CloseComPort m_hComm
     m_hComm = INVALID_HANDLE_VALUE
     '--- cleanup cache
     m_sHeadingLines = vbNullString
@@ -1267,7 +1280,7 @@ Public Function CancelReceipt() As Boolean
                 Exit For
             End If
             If pvPeek(sResult, 4, 2) <> ucsLcdVoid Then
-                SendInput Chr$(ucsChrClear) & Replace(Round(pvPeek(sResult, 0, 4) / 100#, 2), g_sDecimalSeparator, Chr$(ucsChrDot))
+                SendInput Chr$(ucsChrClear) & Replace(Round(pvPeek(sResult, 0, 4) / 100#, 2), DecimalSeparator, Chr$(ucsChrDot))
                 Exit For
             End If
         Next
@@ -1386,6 +1399,7 @@ End Function
 Private Function pvOpenPort(sDevice As String, Optional sError As String) As Long
     Const FUNC_NAME     As String = "pvOpenPort"
     Dim vSplit          As Variant
+    Dim hComm           As Long
     Dim uTimeout        As COMMTIMEOUTS
     Dim uDCB            As DCB
     
@@ -1395,9 +1409,9 @@ Private Function pvOpenPort(sDevice As String, Optional sError As String) As Lon
         sError = pvInternal(ucsErrNoDeviceInfoSet)
         GoTo QH
     End If
-    pvOpenPort = CreateFile("\\.\" & At(vSplit, 0), GENERIC_READ Or GENERIC_WRITE, 0, 0, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, 0)
-    If pvOpenPort = INVALID_HANDLE_VALUE Then
-        sError = pvInternal(ucsErrCreateFileFailed) & GetApiErr(Err.LastDllError)
+    hComm = PortWrapper.OpenComPort(At(vSplit, 0), At(vSplit, 2) = "P")
+    If hComm = INVALID_HANDLE_VALUE Then
+        sError = Printf(pvInternal(ucsErrCreateFileFailed), GetApiErr(Err.LastDllError))
         GoTo QH
     End If
     With uTimeout
@@ -1407,18 +1421,22 @@ Private Function pvOpenPort(sDevice As String, Optional sError As String) As Lon
         .WriteTotalTimeoutConstant = 1000
         .WriteTotalTimeoutMultiplier = 1
     End With
-    If SetCommTimeouts(pvOpenPort, uTimeout) = 0 Then
-        sError = pvInternal(ucsErrSetCommTimeoutsFailed) & GetApiErr(Err.LastDllError)
+    If SetCommTimeouts(hComm, uTimeout) = 0 Then
+        PortWrapper.CloseComPort hComm, ClearPersistent:=True
+        sError = Printf(pvInternal(ucsErrSetCommTimeoutsFailed), GetApiErr(Err.LastDllError))
         GoTo QH
     End If
-    If BuildCommDCB("baud=" & At(vSplit, 1, 9600) & " data=" & At(vSplit, 2, 8) & " parity=" & At(vSplit, 3, "N") & " stop=" & At(vSplit, 4, 1), uDCB) = 0 Then
-        sError = pvInternal(ucsErrBuildCommDCBFailed) & GetApiErr(Err.LastDllError)
+    If BuildCommDCB("baud=" & At(vSplit, 1, 9600) & " data=" & At(vSplit, 3, 8) & " parity=" & At(vSplit, 4, "N") & " stop=" & At(vSplit, 5, 1), uDCB) = 0 Then
+        PortWrapper.CloseComPort hComm, ClearPersistent:=True
+        sError = Printf(pvInternal(ucsErrBuildCommDCBFailed), GetApiErr(Err.LastDllError))
         GoTo QH
     End If
-    If SetCommState(pvOpenPort, uDCB) = 0 Then
-        sError = pvInternal(ucsErrSetCommStateFailed) & GetApiErr(Err.LastDllError)
+    If SetCommState(hComm, uDCB) = 0 Then
+        PortWrapper.CloseComPort hComm, ClearPersistent:=True
+        sError = Printf(pvInternal(ucsErrSetCommStateFailed), GetApiErr(Err.LastDllError))
         GoTo QH
     End If
+    pvOpenPort = hComm
 QH:
     Exit Function
 EH:
@@ -1450,28 +1468,28 @@ Private Function pvSendCommand( _
     uOver.hEvent = CreateEvent(0, 1, 0, 0)
     sText = Chr$(&HAA) & Chr$(&H55) & Chr$(m_lCashDesk) & Chr$(eCmd) & Chr$(Len(sData)) & sData
     '--- calc checksum
-    baText = StrConv(sText, vbFromUnicode)
-    For lIdx = 3 To UBound(baText)
+    baText = ToAscii(sText)
+    For lIdx = 3 To Len(sText) - 1
         lSum = lSum + baText(lIdx)
     Next
     '--- append checksum
     sText = sText & Chr$((256 - lSum Mod 256) Mod 256)
     lSize = Len(sText)
-    baText = StrConv(sText, vbFromUnicode)
+    baText = ToAscii(sText)
     '--- async send
     Call PurgeComm(hComm, PURGE_TXCLEAR Or PURGE_RXCLEAR)
     lResult = WriteFile(hComm, baText(0), lSize, lActual, VarPtr(uOver))
     If lResult = 0 Then
         If Err.LastDllError <> ERROR_IO_PENDING Then
             DebugLog FUNC_NAME, "WriteFile, Err.LastDllError=" & Err.LastDllError
-            sError = pvInternal(ucsErrWriteFileFailure) & GetApiErr(Err.LastDllError)
+            sError = Printf(pvInternal(ucsErrWriteFileFailure), GetApiErr(Err.LastDllError))
             GoTo QH
         End If
     End If
     lResult = WaitForMultipleObjects(1, uOver.hEvent, 0, lTimeout)
     If lResult <> WAIT_OBJECT_0 Then
-        DebugLog FUNC_NAME, "CancelIo after WriteFile, lResult=" & lResult
         Call CancelIo(hComm)
+        DebugLog FUNC_NAME, "CancelIo after WriteFile, lResult=" & lResult
         GoTo QH
     End If
     '--- async read response
@@ -1484,7 +1502,7 @@ Private Function pvSendCommand( _
         If lResult = 0 Then
             If Err.LastDllError <> ERROR_IO_PENDING Then
                 DebugLog FUNC_NAME, "WaitCommEvent, Err.LastDllError=" & Err.LastDllError
-                sError = pvInternal(ucsErrWaitCommEventFailed) & GetApiErr(Err.LastDllError)
+                sError = Printf(pvInternal(ucsErrWaitCommEventFailed), GetApiErr(Err.LastDllError))
                 GoTo QH
             End If
             lResult = WaitForMultipleObjects(1, uOver.hEvent, 0, lTimeout)
@@ -1494,36 +1512,44 @@ Private Function pvSendCommand( _
         End If
         If lResult = WAIT_OBJECT_0 And (lMask And EV_RXCHAR) <> 0 Then
 InLoop:
-            lResult = ReadFile(hComm, ByVal StrPtr(sBuffer), Len(sBuffer), lActual, VarPtr(uOver))
-            If lResult = 0 Then
-                If Err.LastDllError <> ERROR_IO_PENDING Then
-                    DebugLog FUNC_NAME, "ReadFile, Err.LastDllError=" & Err.LastDllError
-                    sError = pvInternal(ucsErrReadFileFailed) & GetApiErr(Err.LastDllError)
-                    GoTo QH
+            Do
+                lActual = 0
+                lResult = ReadFile(hComm, ByVal StrPtr(sBuffer), Len(sBuffer), lActual, VarPtr(uOver))
+                If lResult = 0 Then
+                    If Err.LastDllError = ERROR_HANDLE_EOF Then
+                        lResult = WAIT_OBJECT_0
+                    Else
+                        If Err.LastDllError <> ERROR_IO_PENDING Then
+                            DebugLog FUNC_NAME, "ReadFile, eCmd=0x" & Hex(eCmd) & ", Err.LastDllError=" & Err.LastDllError
+                            sError = Printf(pvInternal(ucsErrReadFileFailed), GetApiErr(Err.LastDllError))
+                            GoTo QH
+                        End If
+                        lResult = WaitForMultipleObjects(1, uOver.hEvent, 0, lTimeout)
+                    End If
+                Else
+                    lResult = WAIT_OBJECT_0
                 End If
-                lResult = WaitForMultipleObjects(1, uOver.hEvent, 0, lTimeout)
-            Else
-                lResult = WAIT_OBJECT_0
-            End If
-            If lResult = WAIT_OBJECT_0 Then
+                If lActual = 0 Then
+                    Exit Do
+                End If
                 sText = sText & Left$(StrConv(sBuffer, vbUnicode), lActual)
-            End If
+            Loop
         End If
         If lResult <> WAIT_OBJECT_0 Then
+            Call CancelIo(hComm)
             DebugLog FUNC_NAME, "CancelIo after ReadFile, lResult=" & lResult & ", lTimeout=" & lTimeout
             If lResult = WAIT_TIMEOUT Then
                 sError = pvInternal(ucsErrTimeoutWaitingForResponse)
             End If
-            Call CancelIo(hComm)
             GoTo QH
         End If
         '--- check if response complete
         If Len(sText) >= 5 Then
-            baText = StrConv(sText, vbFromUnicode)
+            baText = ToAscii(sText)
             If baText(0) <> &HAA Or baText(1) <> &H55 Or baText(2) <> m_lCashDesk Then
+                Call CancelIo(hComm)
                 DebugLog FUNC_NAME, "Invalid response header, sText=" & pvDumpHex(sText)
                 sError = pvInternal(ucsErrInvalidResponseHeader)
-                Call CancelIo(hComm)
                 GoTo QH
             End If
             '--- 5 = sizeof header, baText(4) = size of response, 1 - size of checksum
@@ -1770,8 +1796,8 @@ Private Function pvFromPbcd(sText As String) As String
     Dim lIdx            As Long
     
     On Error GoTo EH
-    baText = StrConv(sText, vbFromUnicode)
-    For lIdx = 0 To UBound(baText)
+    baText = ToAscii(sText)
+    For lIdx = 0 To Len(sText) - 1
         pvFromPbcd = pvFromPbcd & Right$("0" & Hex(baText(lIdx)), 2)
     Next
     Exit Function
@@ -1996,7 +2022,7 @@ Private Function pvPrintReceipt(uCtx As UcsContext, uRow() As UcsRowData, ByVal 
                     sData = sData & Chr$(ucsChrRFN)
                 End If
                 If .PluQuantity <> 1 Then
-                    sData = sData & Replace(.PluQuantity, g_sDecimalSeparator, Chr$(ucsChrDot))
+                    sData = sData & Replace(.PluQuantity, DecimalSeparator, Chr$(ucsChrDot))
                     sData = sData & Chr$(ucsChrX)
                 End If
                 sData = sData & lPlu & Chr$(ucsChrPLU)
@@ -2052,7 +2078,7 @@ Private Function pvPrintReceipt(uCtx As UcsContext, uRow() As UcsRowData, ByVal 
                     lTotal = pvPeek(SendCommand(ucsEltCmdInfoStatus), 0, 4)
                     sData = IIf(.DiscType = ucsFscDstSubtotal, Chr$(ucsChrSubtotal), vbNullString)
                     If .DiscValue <> 0 Then
-                        sData = sData & Replace(Abs(.DiscValue), g_sDecimalSeparator, Chr$(ucsChrDot))
+                        sData = sData & Replace(Abs(.DiscValue), DecimalSeparator, Chr$(ucsChrDot))
                         sData = sData & IIf(.DiscValue < 0, Chr$(ucsChrMinus), Chr$(ucsChrPlus))
                     End If
                     If LenB(sData) <> 0 Then
@@ -2160,7 +2186,7 @@ Private Function pvPrintReceipt(uCtx As UcsContext, uRow() As UcsRowData, ByVal 
                         End If
                     End If
                     lTotal = pvPeek(SendCommand(ucsEltCmdInfoStatus), 0, 4)
-                    sData = Replace(Round(.PmtAmount, 2), g_sDecimalSeparator, Chr$(ucsChrDot))
+                    sData = Replace(Round(.PmtAmount, 2), DecimalSeparator, Chr$(ucsChrDot))
                     Select Case .PmtType
                     Case 2
                         sData = sData & Chr$(ucsChrPy1)
@@ -2435,10 +2461,8 @@ Private Sub Class_Initialize()
 End Sub
 
 Private Sub Class_Terminate()
-    If m_hComm <> INVALID_HANDLE_VALUE Then
-        Call CloseHandle(m_hComm)
-        m_hComm = INVALID_HANDLE_VALUE
-    End If
+    PortWrapper.CloseComPort m_hComm
+    m_hComm = INVALID_HANDLE_VALUE
 End Sub
 
 '=========================================================================

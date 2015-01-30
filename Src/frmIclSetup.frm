@@ -2238,15 +2238,24 @@ Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
 '=========================================================================
-' $Header: /UcsFiscalPrinter/Src/frmIclSetup.frm 13    27.03.14 17:46 Wqw $
+' $Header: /UcsFiscalPrinter/Src/frmIclSetup.frm 16    30.01.15 15:32 Wqw $
 '
 '   Unicontsoft Fiscal Printers Project
-'   Copyright (c) 2008-2013 Unicontsoft
+'   Copyright (c) 2008-2015 Unicontsoft
 '
 '   Nastrojki na FP po ICL protocol
 '
 ' $Log: /UcsFiscalPrinter/Src/frmIclSetup.frm $
 ' 
+' 16    30.01.15 15:32 Wqw
+' REF: format elapsed time in ms
+'
+' 15    6.01.15 17:49 Wqw
+' REF: err check za daisy FP
+'
+' 14    26.11.14 19:19 Wqw
+' REF: spelling
+'
 ' 13    27.03.14 17:46 Wqw
 ' REF: uses ec tape new command
 '
@@ -2329,7 +2338,7 @@ Private Const STR_STATUS_NOT_IMPLEMENTED As String = "Не е реализирано"
 Private Const STR_STATUS_NO_DEP_SELECTED As String = "Липсва избран департамент"
 Private Const STR_STATUS_FETCH_DEP  As String = "Получаване департамент %1 от " & LNG_NUM_DEPS & "..."
 Private Const STR_STATUS_ENUM_PORTS As String = "Изброяване на налични принтери..."
-Private Const STR_STATUS_FETCH_OPER As String = "Получаване опрератор %1 от " & LNG_NUM_OPERS & "..."
+Private Const STR_STATUS_FETCH_OPER As String = "Получаване оператор %1 от " & LNG_NUM_OPERS & "..."
 Private Const STR_STATUS_NO_OPER_SELECTED As String = "Липсва избран оператор"
 Private Const STR_STATUS_OPER_RESETTING As String = "Нулиране..."
 Private Const STR_STATUS_OPER_SUCCESS_RESET As String = "Успешно нулиране на оператор %1"
@@ -2350,9 +2359,9 @@ Private Const STR_LOGO_DIMENSIONS   As String = "Размер на графика: %1x%2"
 Private Const STR_STATUS_RESETTING  As String = "Ресет..."
 Private Const STR_PAYMENT_TYPES     As String = "В БРОЙ|С ДЕБИТНА КАРТА|С ЧЕК|С КРЕДИТНА КАРТА"
 Private Const STR_TAXCOUNTRY        As String = "Държава:|Sw1..Sw8:"
-Private Const STR_FP_STATUSES       As String = "0.7 Резервиран|0.6 Отворен е капакът на принтера|0.5 Обща грешка (OR на всички грешки, маркирани с #)|0.4 # Механизмът на печатащото устройство има неизправност|0.3 Не е свързан клиентски дисплей|0.2 Часовникът не е установен|0.1 # Кодът на получената команда е невалиден|0.0 # Получените данни имат синктактична грешка|1.7 Резервиран|1.6 Вграденият данъчен терминал не отговаря|1.5 Отворен е служебен бон за печат на завъртян на 90 градуса текст|1.4 # Установено е разрушаване на съдържанието на оперативната памет (RAM) след включване|1.3 # Слаба батерия (Часовникът за реално време е в състояние RESET)|1.2 # Извършено е зануляване на оперативната памет|1.1 # Изпълнението на командата не е позволено в текущия фискален режим|1.0 При изпълнение на командата се е полуило препълване на някои полета от сумите" & _
-                                                "|2.7 Резервиран|2.6 Не се използува|2.5 Отворен е служебен бон|2.4 Близък край на КЛЕН (по-малко от 10 MB от КЛЕН свободни)|2.3 Отворен е фискален бон|2.2 Край на КЛЕН (по-малко от 1 MB от КЛЕН свободни)|2.1 Останала е малко хартия|2.0 # Свършила е хартията|3.7 Резервиран|3.6 Състояние на Sw7|3.5 Състояние на Sw6|3.4 Състояние на Sw5|3.3 Състояние на Sw4|3.2 Състояние на Sw3|3.1 Състояние на Sw2|3.0 Състояние на Sw1" & _
-                                                "|4.7 Резервиран|4.6 Не се използува|4.5 OR на всички грешки, маркирани с * от байтове 4 и 5|4.4 * Фискалната памет е пълна|4.3 Има място за по-малко от 50 записа във ФП|4.2 Зададени са индивидуален номер на принтера и номер на фискалната памет|4.1 Зададен е ЕИК|4.0 * Има грешка при запис във фискалната памет|5.7 Резервиран|5.6 Не се използува|5.5 Грешка при четене от фискалната памет|5.4 Зададени са поне веднъж данъчните ставки|5.3 Принтерът е във фискален режим|5.2 * Последният запис във фискалната памет не е успешен|5.1 Фискалната памет е форматирана|5.0 * Фискалната памет е установена в режим READONLY (заключена)"
+Private Const STR_FP_STATUSES       As String = "0.7 Резервиран|0.6 Отворен е капакът на принтера|0.5 Обща грешка (OR на всички грешки, маркирани с #)|0.4 # Механизмът на печатащото устройство има неизправност|0.3 Не е свързан клиентски дисплей|0.2 Часовникът не е установен|0.1 # Кодът на получената команда е невалиден|0.0 # Получените данни имат синтактична грешка|1.7 Резервиран|1.6 Вграденият данъчен терминал не отговаря|1.5 Отворен е служебен бон за печат на завъртян на 90 градуса текст|1.4 # Установено е разрушаване на съдържанието на оперативната памет (RAM) след включване|1.3 # Слаба батерия (Часовникът за реално време е в състояние RESET)|1.2 # Извършено е зануляване на оперативната памет|1.1 # Изпълнението на командата не е позволено в текущия фискален режим|1.0 При изпълнение на командата се е получило препълване на някои полета от сумите" & _
+                                                "|2.7 Резервиран|2.6 Не се използва|2.5 Отворен е служебен бон|2.4 Близък край на КЛЕН (по-малко от 10 MB от КЛЕН свободни)|2.3 Отворен е фискален бон|2.2 Край на КЛЕН (по-малко от 1 MB от КЛЕН свободни)|2.1 Останала е малко хартия|2.0 # Свършила е хартията|3.7 Резервиран|3.6 Състояние на Sw7|3.5 Състояние на Sw6|3.4 Състояние на Sw5|3.3 Състояние на Sw4|3.2 Състояние на Sw3|3.1 Състояние на Sw2|3.0 Състояние на Sw1" & _
+                                                "|4.7 Резервиран|4.6 Не се използва|4.5 OR на всички грешки, маркирани с * от байтове 4 и 5|4.4 * Фискалната памет е пълна|4.3 Има място за по-малко от 50 записа във ФП|4.2 Зададени са индивидуален номер на принтера и номер на фискалната памет|4.1 Зададен е ЕИК|4.0 * Има грешка при запис във фискалната памет|5.7 Резервиран|5.6 Не се използва|5.5 Грешка при четене от фискалната памет|5.4 Зададени са поне веднъж данъчните ставки|5.3 Принтерът е във фискален режим|5.2 * Последният запис във фискалната памет не е успешен|5.1 Фискалната памет е форматирана|5.0 * Фискалната памет е установена в режим READONLY (заключена)"
 '--- messages
 Private Const MSG_INVALID_PASSWORD  As String = "Некоректна парола" & vbCrLf & vbCrLf & "Паролите се състоят от 4 до 6 цифри"
 Private Const MSG_PASSWORDS_MISMATCH As String = "Паролите не съвпадат"
@@ -2656,7 +2665,7 @@ Private Function pvFetchData(ByVal eCmd As UcsCommands) As Boolean
             If Not IsArray(m_vOpers(lIdx)) Then
                 pvStatus = Printf(STR_STATUS_FETCH_OPER, lIdx)
                 m_vOpers(lIdx) = Split(m_oFP.SendCommand(ucsFpcInfoOperator, C_Str(lIdx)), ",")
-                If m_oFP.Status(ucsStbPrintingError) Then
+                If m_oFP.Status(ucsStbPrintingError) Or LenB(m_oFP.LastError) <> 0 Then
                     ReDim Preserve m_vOpers(0 To lIdx - 1) As Variant
                     Exit For
                 End If
@@ -2681,7 +2690,7 @@ Private Function pvFetchData(ByVal eCmd As UcsCommands) As Boolean
             If Not IsArray(m_vDeps(lIdx)) Then
                 pvStatus = Printf(STR_STATUS_FETCH_DEP, lIdx)
                 m_vDeps(lIdx) = Split(m_oFP.SendCommand(ucsFpcInfoDepartment, C_Str(lIdx)), ",")
-                If m_oFP.Status(ucsStbPrintingError) Then
+                If m_oFP.Status(ucsStbPrintingError) Or LenB(m_oFP.LastError) <> 0 Then
                     ReDim Preserve m_vDeps(0 To lIdx - 1) As Variant
                     Exit For
                 End If
@@ -2739,7 +2748,7 @@ Private Function pvFetchData(ByVal eCmd As UcsCommands) As Boolean
             For lRow = 0 To UBound(m_vLogo)
                 pvStatus = Printf(STR_STATUS_FETCH_LOGO, lRow + 1)
                 m_vLogo(lRow) = m_oFP.SendCommand(ucsFpcInitLogo, "R" & lRow)
-                If m_oFP.Status(ucsStbPrintingError) Then
+                If m_oFP.Status(ucsStbPrintingError) Or LenB(m_oFP.LastError) <> 0 Then
                     If lRow > 0 Then
                         ReDim Preserve m_vLogo(0 To lRow - 1) As Variant
                     Else
@@ -3205,7 +3214,7 @@ Private Sub lstCmds_Click()
     
     On Error GoTo EH
     Screen.MousePointer = vbHourglass
-    dblTimer = Timer
+    dblTimer = DateTimer
     If lstCmds.ListIndex = ucsCmdSettings Or lstCmds.ListIndex = ucsCmdOperations Or lstCmds.ListIndex = ucsCmdAdmin Then
         lVisibleFrame = -1
         GoTo QH
@@ -3223,7 +3232,7 @@ Private Sub lstCmds_Click()
     pvStatus = STR_STATUS_FETCHING
     If pvFetchData(lstCmds.ListIndex) Then
         If pvStatus = STR_STATUS_FETCHING Or LenB(pvStatus) = 0 Then
-            pvStatus = Printf(STR_STATUS_SUCCESS_FETCH, Trim(lstCmds.List(lstCmds.ListIndex)), Round(Timer - dblTimer, 2))
+            pvStatus = Printf(STR_STATUS_SUCCESS_FETCH, Trim(lstCmds.List(lstCmds.ListIndex)), Format$(DateTimer - dblTimer, "0.000"))
         End If
         lVisibleFrame = lstCmds.ListIndex
     Else
@@ -3263,7 +3272,7 @@ Private Sub cmdSave_Click(Index As Integer)
     
     On Error GoTo EH
     Screen.MousePointer = vbHourglass
-    dblTimer = Timer
+    dblTimer = DateTimer
     If Not m_oFP.IsConnected And lstCmds.ListIndex <> ucsCmdConnect Then
         pvStatus = STR_STATUS_CONNECTING
         On Error Resume Next '--- checked
@@ -3280,7 +3289,7 @@ Private Sub cmdSave_Click(Index As Integer)
         End If
         If pvFetchData(lstCmds.ListIndex) Then
             If pvStatus = STR_STATUS_SAVING & " " & STR_STATUS_FETCHING Then
-                pvStatus = Printf(STR_STATUS_SUCCESS_SAVE, Trim(lstCmds.List(lstCmds.ListIndex)), Round(Timer - dblTimer, 2))
+                pvStatus = Printf(STR_STATUS_SUCCESS_SAVE, Trim(lstCmds.List(lstCmds.ListIndex)), Format$(DateTimer - dblTimer, "0.000"))
             End If
         End If
     End If
