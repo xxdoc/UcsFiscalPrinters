@@ -12,7 +12,7 @@ Attribute VB_Creatable = True
 Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = True
 '=========================================================================
-' $Header: /UcsFiscalPrinter/Src/cICLProtocol.cls 77    29.01.15 11:44 Wqw $
+' $Header: /UcsFiscalPrinter/Src/cICLProtocol.cls 79    6.04.15 15:16 Wqw $
 '
 '   Unicontsoft Fiscal Printers Project
 '   Copyright (c) 2008-2015 Unicontsoft
@@ -21,6 +21,12 @@ Attribute VB_Exposed = True
 '
 ' $Log: /UcsFiscalPrinter/Src/cICLProtocol.cls $
 ' 
+' 79    6.04.15 15:16 Wqw
+' REF: non-fiscal invoice total vat rounding
+'
+' 78    17.02.15 19:23 Wqw
+' REF: err hanlding on port open
+'
 ' 77    29.01.15 11:44 Wqw
 ' REF: open port on error clears persistent comm handle
 '
@@ -937,7 +943,7 @@ Public Function AutodetectDevices(vPorts As Variant) As Variant
                                 vRetVal(lIdx) = Array(At(vPorts, lIdx), vSpeed, sProtocol, sModel)
                             End If
                         Else
-                            DebugLog FUNC_NAME, "Unknown reply: " & ToHexDump(.Buffer)
+                            DebugLog FUNC_NAME, "Unknown reply: 0x" & ToHexDump(.Buffer)
                         End If
                     End If
                 End If
@@ -2101,7 +2107,7 @@ Private Function pvOpenPort(sDevice As String, ByVal lTimeout As Long, Optional 
     Dim hComm           As Long
     Dim uTimeout        As COMMTIMEOUTS
     Dim uDCB            As DCB
-    Dim lApiError       As Long
+    Dim lLastErr        As Long
     Dim dblTimer        As Double
     
     On Error GoTo EH
@@ -2112,9 +2118,9 @@ Private Function pvOpenPort(sDevice As String, ByVal lTimeout As Long, Optional 
     End If
     hComm = PortWrapper.OpenComPort(At(vSplit, 0), At(vSplit, 2) = "P")
     If hComm = INVALID_HANDLE_VALUE Then
-        lApiError = Err.LastDllError
-        Error = Printf(pvInternal(ucsErrCreateFileFailed), GetApiErr(lApiError))
-        If lApiError = ERROR_ACCESS_DENIED And lTimeout <> 0 Then
+        lLastErr = Err.LastDllError
+        Error = Printf(pvInternal(ucsErrCreateFileFailed), GetApiErr(lLastErr))
+        If lLastErr = ERROR_ACCESS_DENIED And lTimeout <> 0 Then
             dblTimer = DateTimer + lTimeout / 1000#
             Do While DateTimer < dblTimer
                 Call Sleep(100)
@@ -2137,18 +2143,18 @@ Private Function pvOpenPort(sDevice As String, ByVal lTimeout As Long, Optional 
         .WriteTotalTimeoutMultiplier = 1
     End With
     If SetCommTimeouts(hComm, uTimeout) = 0 Then
-        PortWrapper.CloseComPort hComm, ClearPersistent:=True
         Error = Printf(pvInternal(ucsErrSetCommTimeoutsFailed), GetApiErr(Err.LastDllError))
+        PortWrapper.CloseComPort hComm, ClearPersistent:=True
         GoTo QH
     End If
     If BuildCommDCB("baud=" & At(vSplit, 1, 9600) & " data=" & At(vSplit, 3, 8) & " parity=" & At(vSplit, 4, "N") & " stop=" & At(vSplit, 5, 1), uDCB) = 0 Then
-        PortWrapper.CloseComPort hComm, ClearPersistent:=True
         Error = Printf(pvInternal(ucsErrBuildCommDCBFailed), GetApiErr(Err.LastDllError))
+        PortWrapper.CloseComPort hComm, ClearPersistent:=True
         GoTo QH
     End If
     If SetCommState(hComm, uDCB) = 0 Then
-        PortWrapper.CloseComPort hComm, ClearPersistent:=True
         Error = Printf(pvInternal(ucsErrSetCommStateFailed), GetApiErr(Err.LastDllError))
+        PortWrapper.CloseComPort hComm, ClearPersistent:=True
         GoTo QH
     End If
     pvOpenPort = hComm
@@ -2805,12 +2811,15 @@ Private Function pvPrintReceipt(uCtx As UcsContext, uRow() As UcsRowData, ByVal 
                         pvPrintLine String$(pvRowChars, "-")
                         pvPrintLine AlignText(pvText(ucsTxtFooterTotal), SafeFormat(SumArray(uCtx.GrpTotal), sFormatAmount), pvRowChars - 2)
                         If .PrintRowType = ucsFscRetInvoiceNonfiscal Then
-                            '--- print invoice totals by VAT group
+                            '--- print invoice totals by VAT groups
                             pvGetCommandConfig CONF_NAME, "InfoTaxRates", eCmd, ucsFpcInfoTaxRates, sParam, vbNullString
                             vSplit = Split(SendCommand(eCmd, sParam), DEF_DELIM)
                             For lIdx = 1 To UBound(uCtx.GrpTotal)
                                 If Abs(uCtx.GrpTotal(lIdx)) > DBL_EPSILON Then
-                                    dblTotal = Round(uCtx.GrpTotal(lIdx) / (1 + C_Dbl(At(vSplit, lIdx - 1)) / 100#), 2)
+                                    '--- first, round VAT
+                                    dblTotal = Round(uCtx.GrpTotal(lIdx) - uCtx.GrpTotal(lIdx) / (1 + C_Dbl(At(vSplit, lIdx - 1)) / 100#), 2)
+                                    '--- then, calc TaxBase = Total - VAT
+                                    dblTotal = Round(uCtx.GrpTotal(lIdx) - dblTotal, 2)
                                     pvPrintLine AlignText(Printf(pvText(ucsTxtGroupTotal), Chr$(191 + lIdx)), SafeFormat(uCtx.GrpTotal(lIdx), sFormatAmount), pvRowChars - 2)
                                     pvPrintLine AlignText(Printf(pvText(ucsTxtGroupVat), Chr$(191 + lIdx), SafeFormat(C_Dbl(At(vSplit, lIdx - 1)), sFormatAmount) & "%"), _
                                         SafeFormat(Round(uCtx.GrpTotal(lIdx) - dblTotal, 2), sFormatAmount), pvRowChars - 2)

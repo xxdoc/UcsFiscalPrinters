@@ -12,7 +12,7 @@ Attribute VB_Creatable = True
 Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = True
 '=========================================================================
-' $Header: /UcsFiscalPrinter/Src/cZekaProtocol.cls 37    29.01.15 11:44 Wqw $
+' $Header: /UcsFiscalPrinter/Src/cZekaProtocol.cls 39    6.04.15 15:16 Wqw $
 '
 '   Unicontsoft Fiscal Printers Project
 '   Copyright (c) 2008-2015 Unicontsoft
@@ -21,6 +21,12 @@ Attribute VB_Exposed = True
 '
 ' $Log: /UcsFiscalPrinter/Src/cZekaProtocol.cls $
 ' 
+' 39    6.04.15 15:16 Wqw
+' REF: non-fiscal invoice total vat rounding
+'
+' 38    17.02.15 19:23 Wqw
+' REF: err hanlding on port open
+'
 ' 37    29.01.15 11:44 Wqw
 ' REF: open port on error clears persistent comm handle
 '
@@ -702,7 +708,7 @@ Public Function AutodetectDevices(vPorts As Variant) As Variant
                                 vRetVal(lIdx) = Array(At(vPorts, lIdx), vSpeed, sProtocol, sModel)
                             End If
                         Else
-                            DebugLog FUNC_NAME, "Unknown reply: " & ToHexDump(.Buffer)
+                            DebugLog FUNC_NAME, "Unknown reply: 0x" & ToHexDump(.Buffer)
                         End If
                     End If
                 End If
@@ -1833,7 +1839,7 @@ Private Function pvOpenPort(sDevice As String, ByVal lTimeout As Long, Optional 
     Dim hComm           As Long
     Dim uTimeout        As COMMTIMEOUTS
     Dim uDCB            As DCB
-    Dim lApiError       As Long
+    Dim lLastErr        As Long
     Dim dblTimer        As Double
     
     On Error GoTo EH
@@ -1844,9 +1850,9 @@ Private Function pvOpenPort(sDevice As String, ByVal lTimeout As Long, Optional 
     End If
     hComm = PortWrapper.OpenComPort(At(vSplit, 0), At(vSplit, 2) = "P")
     If hComm = INVALID_HANDLE_VALUE Then
-        lApiError = Err.LastDllError
-        Error = pvInternal(ucsErrCreateFileFailed) & GetApiErr(lApiError)
-        If lApiError = ERROR_ACCESS_DENIED And lTimeout <> 0 Then
+        lLastErr = Err.LastDllError
+        Error = Printf(pvInternal(ucsErrCreateFileFailed), GetApiErr(lLastErr))
+        If lLastErr = ERROR_ACCESS_DENIED And lTimeout <> 0 Then
             dblTimer = DateTimer + lTimeout / 1000#
             Do While DateTimer < dblTimer
                 Call Sleep(100)
@@ -1869,18 +1875,18 @@ Private Function pvOpenPort(sDevice As String, ByVal lTimeout As Long, Optional 
         .WriteTotalTimeoutMultiplier = 1
     End With
     If SetCommTimeouts(hComm, uTimeout) = 0 Then
-        PortWrapper.CloseComPort hComm, ClearPersistent:=True
         Error = Printf(pvInternal(ucsErrSetCommTimeoutsFailed), GetApiErr(Err.LastDllError))
+        PortWrapper.CloseComPort hComm, ClearPersistent:=True
         GoTo QH
     End If
     If BuildCommDCB("baud=" & At(vSplit, 1, 9600) & " data=" & At(vSplit, 3, 8) & " parity=" & At(vSplit, 4, "N") & " stop=" & At(vSplit, 5, 1), uDCB) = 0 Then
-        PortWrapper.CloseComPort hComm, ClearPersistent:=True
         Error = Printf(pvInternal(ucsErrBuildCommDCBFailed), GetApiErr(Err.LastDllError))
+        PortWrapper.CloseComPort hComm, ClearPersistent:=True
         GoTo QH
     End If
     If SetCommState(hComm, uDCB) = 0 Then
-        PortWrapper.CloseComPort hComm, ClearPersistent:=True
         Error = Printf(pvInternal(ucsErrSetCommStateFailed), GetApiErr(Err.LastDllError))
+        PortWrapper.CloseComPort hComm, ClearPersistent:=True
         GoTo QH
     End If
     pvOpenPort = hComm
@@ -2021,7 +2027,7 @@ RetryParse:
                             DebugLog FUNC_NAME, "RetVal=" & pvSendCommand
                         End If
                     Else
-                        Error = Printf(pvInternal(ucsErrInvalidResponseLength), ToHexDump(sText))
+                        Error = Printf(pvInternal(ucsErrInvalidResponseLength), "0x" & ToHexDump(sText))
                     End If
                     Exit Do
                 End If
@@ -2039,7 +2045,7 @@ RetryParse:
                             Error = StatusText
                         End If
                     Else
-                        Error = Printf(pvInternal(ucsErrInvalidResponseLength), ToHexDump(sText))
+                        Error = Printf(pvInternal(ucsErrInvalidResponseLength), "0x" & ToHexDump(sText))
                     End If
                     Exit Do
                 End If
@@ -2048,7 +2054,7 @@ RetryParse:
                 DebugLog FUNC_NAME, "eCmd=0x" & Hex(eCmd) & ", Retry requested, sText=" & sText
                 GoTo RetrySend
             Case ZFP_NACK           ' &H15
-                Error = Printf(pvInternal(ucsErrInvalidMessageFormatOrChecksum), ToHexDump(sText))
+                Error = Printf(pvInternal(ucsErrInvalidMessageFormatOrChecksum), "0x" & ToHexDump(sText))
                 Exit Do
             Case Else
                 If eCmd <= [_ucsZekCmdFastMax] Then
@@ -2057,11 +2063,11 @@ RetryParse:
                     lIdx = InStr(sText, Chr$(ZFP_STX))
                     lIdx = LimitLong(InStr(sText, Chr$(ZFP_ACK)), , Znl(lIdx, 2147483647))
                     If lIdx > 1 Then
-                        DebugLog FUNC_NAME, "Trim bogus symbols, Prefix=" & ToHexDump(Left$(sText, lIdx - 1))
+                        DebugLog FUNC_NAME, "Trim bogus symbols, Prefix=0x" & ToHexDump(Left$(sText, lIdx - 1))
                         sText = Mid$(sText, lIdx)
                         GoTo RetryParse
                     End If
-                    Error = Printf(pvInternal(ucsErrResponseMissingPreamble), ToHexDump(sText))
+                    Error = Printf(pvInternal(ucsErrResponseMissingPreamble), "0x" & ToHexDump(sText))
                 End If
                 Exit Do
             End Select
@@ -2229,9 +2235,9 @@ Private Function pvPrintReceipt(uCtx As UcsContext, uRow() As UcsRowData, ByVal 
                     End If
                 End If
                 '--- setup invoice no
-                If .InitReceiptType = ucsFscRetInvoiceFiscal And C_Lng(.InitInvData(ucsInvNumber)) <> 0 Then
+                If .InitReceiptType = ucsFscRetInvoiceFiscal And LenB(.InitInvData(ucsInvNumber)) <> 0 Then
                     pvGetCommandConfig CONF_NAME, "InitInvoiceNo", eCmd, ucsZekCmdInitInvoiceNo, sParam, "%1;%1"
-                    sParam = Printf(sParam, Pad(C_Lng(.InitInvData(ucsInvNumber)), -m_uConfig.MaxInvoiceNo))
+                    sParam = Printf(sParam, Pad(.InitInvData(ucsInvNumber), -m_uConfig.MaxInvoiceNo))
                     SendCommand eCmd, sParam
                     If LenB(m_sLastError) <> 0 Then
                         GoTo QH
@@ -2441,7 +2447,10 @@ Private Function pvPrintReceipt(uCtx As UcsContext, uRow() As UcsRowData, ByVal 
                             End If
                             For lIdx = 1 To UBound(uCtx.GrpTotal)
                                 If Abs(uCtx.GrpTotal(lIdx)) > DBL_EPSILON Then
-                                    dblTotal = Round(uCtx.GrpTotal(lIdx) / (1 + C_Dbl(At(vSplit, lIdx - 1)) / 100#), 2)
+                                    '--- first, round VAT
+                                    dblTotal = Round(uCtx.GrpTotal(lIdx) - uCtx.GrpTotal(lIdx) / (1 + C_Dbl(At(vSplit, lIdx - 1)) / 100#), 2)
+                                    '--- then, calc TaxBase = Total - VAT
+                                    dblTotal = Round(uCtx.GrpTotal(lIdx) - dblTotal, 2)
                                     pvPrintLine AlignText(Printf(pvText(ucsTxtGroupTotal), Chr$(191 + lIdx)), SafeFormat(uCtx.GrpTotal(lIdx), sFormatAmount), pvRowChars)
                                     pvPrintLine AlignText(Printf(pvText(ucsTxtGroupVat), Chr$(191 + lIdx), SafeFormat(C_Dbl(At(vSplit, lIdx - 1)), sFormatAmount) & "%"), _
                                         SafeFormat(Round(uCtx.GrpTotal(lIdx) - dblTotal, 2), sFormatAmount), pvRowChars)
