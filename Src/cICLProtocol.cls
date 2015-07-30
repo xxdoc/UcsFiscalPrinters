@@ -12,7 +12,7 @@ Attribute VB_Creatable = True
 Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = True
 '=========================================================================
-' $Header: /UcsFiscalPrinter/Src/cICLProtocol.cls 79    6.04.15 15:16 Wqw $
+' $Header: /UcsFiscalPrinter/Src/cICLProtocol.cls 83    23.07.15 10:55 Wqw $
 '
 '   Unicontsoft Fiscal Printers Project
 '   Copyright (c) 2008-2015 Unicontsoft
@@ -21,6 +21,18 @@ Attribute VB_Exposed = True
 '
 ' $Log: /UcsFiscalPrinter/Src/cICLProtocol.cls $
 ' 
+' 83    23.07.15 10:55 Wqw
+' REF: cash debit/credit indexes in info nap
+'
+' 82    22.05.15 10:56 Wqw
+' REF: nap info indexes in cash debit/credit
+'
+' 81    12.05.15 13:31 Wqw
+' REF: prints quantity on rows w/ negative prices
+'
+' 80    14.04.15 18:23 Wqw
+' REF: uses VbTriState enum
+'
 ' 79    6.04.15 15:16 Wqw
 ' REF: non-fiscal invoice total vat rounding
 '
@@ -648,12 +660,6 @@ Private Enum UcsCharset
     ucsCrsMik
 End Enum
 
-Private Enum UcsTriState
-    ucsTri_Undefined = -2       ' Undefined value. Usually value is inherited from parent definition.
-    ucsTriFalse = 0             ' (Default) Represents False.
-    ucsTriTrue = -1             ' Represents True.
-End Enum
-
 Private Type UcsAutodetect
     hComm               As Long
     WriteOver           As OVERLAPPED
@@ -663,7 +669,7 @@ End Type
 
 Private Type UcsConfigValues
     Charset             As UcsCharset
-    IsEcr               As UcsTriState
+    IsEcr               As VbTriState
     IsDaisy             As Boolean
     RowChars            As Long
     ItemChars           As Long
@@ -780,12 +786,12 @@ Property Get IsEcr() As Boolean
     Dim sParam          As String
     
     On Error GoTo EH
-    If m_uConfig.IsEcr = ucsTri_Undefined Then
+    If m_uConfig.IsEcr = vbUseDefault Then
         pvGetCommandConfig CONF_NAME, "EcrReadRow", eCmd, ucsFpcEcrReadRow, sParam, "2;1;", _
             "Timeout", lTimeout, 100
-        m_uConfig.IsEcr = IIf(LenB(pvSendCommand(m_hComm, lTimeout, eCmd, sParam)) <> 0, ucsTriTrue, ucsTriFalse)
+        m_uConfig.IsEcr = IIf(LenB(pvSendCommand(m_hComm, lTimeout, eCmd, sParam)) <> 0, vbTrue, vbFalse)
     End If
-    IsEcr = (m_uConfig.IsEcr = ucsTriTrue)
+    IsEcr = (m_uConfig.IsEcr = vbTrue)
     Exit Property
 EH:
     RaiseError FUNC_NAME
@@ -979,7 +985,7 @@ Public Function Init( _
     Dim lIdx            As Long
     Dim eCmd            As UcsIclCommandsEnum
     Dim sParam          As String
-    Dim eHasSwitchesInfo As UcsTriState
+    Dim eHasSwitchesInfo As VbTriState
     Dim sDaisyPrefix    As String
     Dim lSerialIndex    As Long
     Dim lSwitchesIndex  As Long
@@ -1011,17 +1017,17 @@ Public Function Init( _
     End If
     '--- load config values
     sSerial = At(m_vInfoDiagnostics, lSerialIndex)
-    eHasSwitchesInfo = GetConfigNumber(sSerial, "HasSwitchesInfo", ucsTri_Undefined)
-    If eHasSwitchesInfo = ucsTri_Undefined Then
+    eHasSwitchesInfo = GetConfigNumber(sSerial, "HasSwitchesInfo", vbUseDefault)
+    If eHasSwitchesInfo = vbUseDefault Then
         '--- heuristic check for recent version of firmware
-        eHasSwitchesInfo = IIf(Len(At(m_vInfoDiagnostics, lSwitchesIndex)) > 2, ucsTriTrue, ucsTriFalse)
+        eHasSwitchesInfo = IIf(Len(At(m_vInfoDiagnostics, lSwitchesIndex)) > 2, vbTrue, vbFalse)
     End If
     With m_uConfig
         .Charset = ucsCrsAuto
-        .IsEcr = ucsTri_Undefined
+        .IsEcr = vbUseDefault
         .IsDaisy = Left$(GetSerialNumber(), Len(sDaisyPrefix)) = sDaisyPrefix
-        .AbsoluteDiscount = C_Bool(GetConfigValue(sSerial, "AbsoluteDiscount", eHasSwitchesInfo = ucsTriTrue))
-        .NegativePrices = C_Bool(GetConfigValue(sSerial, "NegativePrices", eHasSwitchesInfo = ucsTriFalse))
+        .AbsoluteDiscount = C_Bool(GetConfigValue(sSerial, "AbsoluteDiscount", eHasSwitchesInfo = vbTrue))
+        .NegativePrices = C_Bool(GetConfigValue(sSerial, "NegativePrices", eHasSwitchesInfo = vbFalse))
         .RowChars = GetConfigNumber(sSerial, "RowChars", 0)
         .ItemChars = GetConfigNumber(sSerial, "ItemChars", 0)
         .MaxReceiptRows = GetConfigNumber(sSerial, "MaxReceiptRows", DEF_MAX_RECEIPT_ROWS)
@@ -1200,7 +1206,7 @@ Public Function AddPLU( _
         .PluName = RTrim$(SafeText(Name))
         bNegative = (Round(Price, 2) * Round(Quantity, 3) < -DBL_EPSILON)
         .PluPrice = IIf(bNegative, -1, 1) * Round(Abs(Price), 2)
-        .PluQuantity = Round(Abs(Quantity), 3)
+        .PluQuantity = Round(IIf(bNegative Or m_uConfig.NegativePrices, Abs(Quantity), Quantity), 3)
         .PluVatGroup = LimitLong(VatGroup, 1, 8)
         .PrintRowType = m_uRow(0).InitReceiptType
     End With
@@ -2007,6 +2013,7 @@ Public Function CashDebitCredit(ByVal dblValue As Double) As Variant
     Dim bPrevExceptions As Boolean
     Dim sIndexes        As String
     Dim vElem           As Variant
+    Dim lOffset         As Long
     
     On Error GoTo EH
     sFormat = IIf(Abs(dblValue) > DBL_EPSILON, "0.00", "\")
@@ -2023,17 +2030,18 @@ Public Function CashDebitCredit(ByVal dblValue As Double) As Variant
         Next
         '--- sParam=4 -> P,CashInN,CashInS,CashOutN,CashOutS,CashSum
         pvGetCommandConfig CONF_NAME, "InfoNap", eCmd, ucsFpcInfoNap, sParam, "4", _
-            "Indexes", sIndexes, "0,5,2,4"
+            "Indexes", sIndexes, "4,1,3"
         bPrevExceptions = pvSetExceptions(False)
         vSplit = Split(SendCommand(eCmd, sParam), DEF_DELIM)
         Exceptions = bPrevExceptions
         lIdx = 0
         If UBound(vSplit) > 0 Then
+            lOffset = IIf(At(vSplit, 0) = "P", 1, 0)
             For Each vElem In Split(sIndexes, DEF_DELIM)
                 If lIdx >= LBound(vRetVal) And lIdx <= UBound(vRetVal) Then
                     If C_Str(C_Lng(vElem)) = C_Str(vElem) Then
-                        If LenB(At(vSplit, C_Lng(vElem))) <> 0 Then
-                            vRetVal(lIdx) = ParseSum(At(vSplit, C_Lng(vElem)))
+                        If LenB(At(vSplit, C_Lng(vElem) + lOffset)) <> 0 Then
+                            vRetVal(lIdx) = ParseSum(At(vSplit, C_Lng(vElem) + lOffset))
                         End If
                     Else
                         vRetVal(lIdx) = vElem
@@ -2933,12 +2941,14 @@ Private Sub pvConvertExtraRows()
                 If Not m_uConfig.NegativePrices And dblPrice <= 0 Then
                     vSplit = WrapText(m_uRow(lRow).PluName, pvItemChars)
                     lIdx = LimitLong(UBound(vSplit), , 1)
-                    vSplit(lIdx) = AlignText(vSplit(lIdx), SafeFormat(dblTotal + dblDiscTotal, "0.00"), pvRowChars)
+                    vSplit(lIdx) = AlignText(vSplit(lIdx), SafeFormat(dblTotal + dblDiscTotal, "0.00") & " " & Chr$(191 + m_uRow(lRow).PluVatGroup), pvRowChars)
                     m_uRow(lRow).RowType = ucsRowLine
                     m_uRow(lRow).LineText = vSplit(0)
                     If lIdx > 0 Then
                         AddLine At(vSplit, 1), False, lRow + 1
                         lRow = lRow + 1
+                    ElseIf lIdx = 0 And m_uRow(lRow).PluQuantity <> 1 Then
+                        AddLine AlignText(vbNullString, SafeFormat(m_uRow(lRow).PluQuantity, "0.000") & " x " & SafeFormat(m_uRow(lRow).PluPrice, "0.00"), pvRowChars - 2), False, lRow
                     End If
                     If dblPrice < -DBL_EPSILON Then
                         AddDiscount ucsFscDstSubtotalAbs, dblTotal + dblDiscTotal, lRow + 1

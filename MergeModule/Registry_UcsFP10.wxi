@@ -210,7 +210,7 @@
   <Registry Id="UcsFP10.246" Root="HKCR" Key="Interface\{FCFB3D2B-A0FA-1068-A738-08002B3371B5}\ProxyStubClsid" Value="{00020420-0000-0000-C000-000000000046}" Type="string" />
   <Registry Id="UcsFP10.247" Root="HKCR" Key="Interface\{FCFB3D2B-A0FA-1068-A738-08002B3371B5}\ProxyStubClsid32" Value="{00020420-0000-0000-C000-000000000046}" Type="string" />
   <Registry Id="UcsFP10.249" Root="HKCR" Key="Interface\{FCFB3D2B-A0FA-1068-A738-08002B3371B5}\TypeLib" Name="Version" Value="6.0" Type="string" />
-  <Registry Id="UcsFP10.254" Root="HKCR" Key="TypeLib\{5A99FB21-D0A2-410E-BBE5-C2B9A26108B2}\1e.1" Value="Unicontsoft Fiscal Printers Component 1.0 (1.0.70)" Type="string" />
+  <Registry Id="UcsFP10.254" Root="HKCR" Key="TypeLib\{5A99FB21-D0A2-410E-BBE5-C2B9A26108B2}\1e.1" Value="Unicontsoft Fiscal Printers Component 1.0 (1.0.74)" Type="string" />
   <Registry Id="UcsFP10.255" Root="HKCR" Key="TypeLib\{5A99FB21-D0A2-410E-BBE5-C2B9A26108B2}\1e.1\0\win32" Value="[#UcsFP10.dll]" Type="string" />
   <Registry Id="UcsFP10.256" Root="HKCR" Key="TypeLib\{5A99FB21-D0A2-410E-BBE5-C2B9A26108B2}\1e.1\FLAGS" Value="0" Type="string" />
   <Registry Id="UcsFP10.257" Root="HKCR" Key="TypeLib\{5A99FB21-D0A2-410E-BBE5-C2B9A26108B2}\1e.1\HELPDIR" Value="[$UcsFP10.dll]" Type="string" />
