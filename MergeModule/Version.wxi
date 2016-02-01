@@ -1,4 +1,4 @@
 <Include>
-  <?define ProductVersion="1.0.75" ?>
-  <?define ProductVersionMSI="1.0.75" ?>
+  <?define ProductVersion="1.0.77" ?>
+  <?define ProductVersionMSI="1.0.77" ?>
 </Include>
