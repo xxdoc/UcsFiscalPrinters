@@ -1,14 +1,20 @@
 Attribute VB_Name = "mdGlobals"
 '=========================================================================
-' $Header: /UcsFiscalPrinter/Src/mdGlobals.bas 33    20.11.15 16:43 Wqw $
+' $Header: /UcsFiscalPrinter/Src/mdGlobals.bas 35    1.02.16 17:17 Wqw $
 '
 '   Unicontsoft Fiscal Printers Project
-'   Copyright (c) 2008-2015 Unicontsoft
+'   Copyright (c) 2008-2016 Unicontsoft
 '
 '   Global functions, constants and variables
 '
 ' $Log: /UcsFiscalPrinter/Src/mdGlobals.bas $
 ' 
+' 35    1.02.16 17:17 Wqw
+' ADD: Function SplitOrReindex
+'
+' 34    28.01.16 16:01 Wqw
+' REF: disp invoke params
+'
 ' 33    20.11.15 16:43 Wqw
 ' REF: disp invoke imp call type param as a mask, search collection
 ' invokes both prop get and method on default disp id
@@ -179,8 +185,6 @@ Private Const VT_BSTR                       As Long = 8
 Private Const VT_BOOL                       As Long = 11
 'Private Const VT_UI1                        As Long = 17
 Private Const VARIANT_ALPHABOOL             As Long = 2
-'--- hresults
-Private Const S_OK                          As Long = 0
 
 Private Declare Function FormatMessage Lib "kernel32" Alias "FormatMessageA" (ByVal dwFlags As Long, lpSource As Long, ByVal dwMessageId As Long, ByVal dwLanguageId As Long, ByVal lpBuffer As String, ByVal nSize As Long, Args As Any) As Long
 Private Declare Function GetVersionEx Lib "kernel32" Alias "GetVersionExA" (lpVersionInformation As OSVERSIONINFO) As Long
@@ -317,7 +321,7 @@ Private Type BMPFILE_HEADER
     bmp_offset          As Long
 End Type
 
-Private Type GUID
+Private Type VBGUID
     Data1               As Long
     Data2               As Integer
     Data3               As Integer
@@ -351,8 +355,8 @@ Public Const LIB_NAME               As String = "UcsFiscalPrinters"
 Public Const STR_NONE               As String = "(Няма)"
 Public Const STR_PROTOCOL_ELTRADE_ECR As String = "ELTRADE ECR"
 Public Const STR_PROTOCOL_DATECS_FP As String = "DATECS FP/ECR"
-Public Const STR_PROTOCOL_DAISY_ECR As String = "DAISY MICRO"
-Public Const STR_PROTOCOL_ZEKA_FP   As String = "TREMOL ZEKA"
+Public Const STR_PROTOCOL_DAISY_ECR As String = "DAISY FP/ECR"
+Public Const STR_PROTOCOL_ZEKA_FP   As String = "TREMOL ECR"
 Public Const CHR1                   As String = "" '--- Chr$(1)
 Public Const DBL_EPSILON            As Double = 0.0000000001
 
@@ -1361,21 +1365,22 @@ Public Function SearchCollection(ByVal pCol As Object, Index As Variant, Optiona
         '--- do nothing
     ElseIf TypeOf pCol Is IVbCollection Then
         Set pVbCol = pCol
-        SearchCollection = pVbCol.Item(Index, RetVal) = S_OK
+        SearchCollection = (pVbCol.Item(Index, RetVal) >= 0)
     Else
-        SearchCollection = DispInvoke(pCol, DISPID_VALUE, ucsIclPropGet Or ucsIclMethod, Result:=RetVal, Args:=Index)
+        SearchCollection = DispInvoke(pCol, DISPID_VALUE, ucsIclMethod Or ucsIclPropGet, Args:=Index, RetVal:=RetVal)
     End If
 End Function
 
 Public Function DispInvoke( _
             ByVal pDisp As IVbDispatch, _
             Name As Variant, _
-            Optional ByVal CallType As UcsInvokeCallEnum = ucsIclMethod, _
-            Optional Result As Variant, _
-            Optional Args As Variant) As Boolean
+            Optional ByVal CallType As UcsInvokeCallEnum, _
+            Optional Args As Variant, _
+            Optional RetVal As Variant) As Boolean
     Const DISPID_PROPERTYPUT As Long = -3
-    Dim IID_NULL        As GUID
+    Dim IID_NULL        As VBGUID
     Dim lDispID         As Long
+    Dim hResult         As Long
     Dim uParams         As DISPPARAMS
     Dim uInfo           As EXCEPINFO
     Dim aParams()       As Variant
@@ -1392,9 +1397,13 @@ Public Function DispInvoke( _
     If IsNumeric(Name) Then
         lDispID = C_Lng(Name)
     Else
-        If pDisp.GetIDsOfNames(IID_NULL, C_Str(Name), 1, LOCALE_USER_DEFAULT, lDispID) <> S_OK Then
-            Exit Function
+        hResult = pDisp.GetIDsOfNames(IID_NULL, C_Str(Name), 1, LOCALE_USER_DEFAULT, lDispID)
+        If hResult < 0 Then
+            GoTo QH
         End If
+    End If
+    If CallType = 0 Then
+        CallType = ucsIclMethod Or IIf(Not IsMissing(RetVal), ucsIclPropGet, 0)
     End If
     '--- process params
     If Not IsMissing(Args) Then
@@ -1420,29 +1429,33 @@ Public Function DispInvoke( _
             End With
         End If
     End If
-    If (CallType And ucsIclPropGet) <> 0 Or (CallType And ucsIclMethod) <> 0 And Not IsMissing(Result) Then
-        Result = Empty
-        lPtrResult = VarPtr(Result)
+    If (CallType And ucsIclPropGet) <> 0 Or (CallType And ucsIclMethod) <> 0 And Not IsMissing(RetVal) Then
+        RetVal = Empty
+        lPtrResult = VarPtr(RetVal)
     End If
-    If pDisp.Invoke(lDispID, IID_NULL, LOCALE_USER_DEFAULT, CallType, uParams, ByVal lPtrResult, uInfo, lArgErr) = S_OK Then
-        DispInvoke = True
-    Else
-        Result = Array(uInfo.sCode, uInfo.Description, uInfo.Source)
+    hResult = pDisp.Invoke(lDispID, IID_NULL, LOCALE_USER_DEFAULT, CallType, uParams, ByVal lPtrResult, uInfo, lArgErr)
+    If hResult < 0 Then
+        GoTo QH
     End If
+    '--- success
+    DispInvoke = True
+    Exit Function
+QH:
+    RetVal = Array(hResult, uInfo.sCode, uInfo.Description, uInfo.Source)
 End Function
 
-Public Function DispPropertyGet(pDisp As Object, PropName As String, Optional Result As Variant) As Variant
-    If DispInvoke(pDisp, PropName, ucsIclPropGet, Result) Then
-        AssignVariant DispPropertyGet, Result
+Public Function DispPropertyGet(pDisp As Object, PropName As String, Optional RetVal As Variant) As Variant
+    If DispInvoke(pDisp, PropName, ucsIclMethod Or ucsIclPropGet, RetVal:=RetVal) Then
+        AssignVariant DispPropertyGet, RetVal
     End If
 End Function
 
 Public Property Get LockControl(oCtl As Object) As Boolean
     Dim vResult         As Variant
     
-    If DispInvoke(oCtl, "Locked", ucsIclPropGet, vResult) Then
+    If DispInvoke(oCtl, "Locked", RetVal:=vResult) Then
         LockControl = vResult
-    ElseIf DispInvoke(oCtl, "Enabled", ucsIclPropGet, vResult) Then
+    ElseIf DispInvoke(oCtl, "Enabled", RetVal:=vResult) Then
         LockControl = Not vResult
     End If
 End Property
@@ -1475,5 +1488,24 @@ Public Function ToAscii(sSend As String) As Byte()
         baText = " "
     End If
     ToAscii = baText
+End Function
+
+Public Function SplitOrReindex(Expression As String, Delimiter As String) As Variant
+    Dim vResult         As Variant
+    Dim lIdx            As Long
+    Dim lSize           As Long
+    
+    SplitOrReindex = Split(Expression, Delimiter)
+    '--- check if reindex needed
+    If IsNumeric(At(SplitOrReindex, 0)) Then
+        For lIdx = 0 To UBound(SplitOrReindex) Step 2
+            lSize = LimitLong(lSize, C_Lng(At(SplitOrReindex, lIdx)))
+        Next
+        ReDim vResult(0 To lSize) As Variant
+        For lIdx = 0 To UBound(SplitOrReindex) Step 2
+            vResult(C_Lng(At(SplitOrReindex, lIdx))) = At(SplitOrReindex, lIdx + 1)
+        Next
+        SplitOrReindex = vResult
+    End If
 End Function
 

@@ -12,15 +12,22 @@ Attribute VB_Creatable = True
 Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = True
 '=========================================================================
-' $Header: /UcsFiscalPrinter/Src/cICLProtocol.cls 84    20.11.15 16:39 Wqw $
+' $Header: /UcsFiscalPrinter/Src/cICLProtocol.cls 86    1.02.16 17:21 Wqw $
 '
 '   Unicontsoft Fiscal Printers Project
-'   Copyright (c) 2008-2015 Unicontsoft
+'   Copyright (c) 2008-2016 Unicontsoft
 '
 '   Protocol handler for Datecs & Daisy fiscal printers (ICL protocol)
 '
 ' $Log: /UcsFiscalPrinter/Src/cICLProtocol.cls $
 ' 
+' 86    1.02.16 17:21 Wqw
+' REF: better daisy fx1300-kl support
+'
+' 85    28.01.16 16:02 Wqw
+' REF: better support for virtual usb/com ports for file read/write in
+' overlapped mode
+'
 ' 84    20.11.15 16:39 Wqw
 ' REF: optional param of EndReceipt impl of IDeviceProtocol interface
 '
@@ -356,10 +363,12 @@ Public Enum UcsIclCommandsEnum
     ucsFpcInitEcTapeNew = 119
     ucsFpcInitEcTape = 120
     ucsFpcInitDaisyText = 149
+    ucsFpcInitDaisyCurrencyRate = 151
     '--- transaction
     ucsFpcNonFiscalOpen = 38
     ucsFpcNonFiscalClose = 39
     ucsFpcNonFiscalText = 42
+    ucsFpcLineFeed = 44
     ucsFpcFiscalOpen = 48
     ucsFpcFiscalSell = 49
     ucsFpcFiscalSubtotal = 51
@@ -370,7 +379,7 @@ Public Enum UcsIclCommandsEnum
     ucsFpcFiscalCgInfo = 57
     ucsFpcFiscalCancel = 60
     ucsFpcAdminCashDebitCredit = 70
-    ucsFpcLineFeed = 44
+    ucsFpcDaisyFiscalCancel = 130
     '--- info
     ucsFpcInfoServiceContract = 34
     ucsFpcInfoNap = 37
@@ -434,6 +443,7 @@ Private Const INVALID_HANDLE_VALUE          As Long = -1
 Private Const ERROR_ACCESS_DENIED           As Long = 5
 '--- for WaitCommEvent
 Private Const EV_RXCHAR                     As Long = &H1                '  Any Character received
+Private Const EV_ERR                        As Long = &H80
 '--- for WaitForMultipleObjects
 Private Const WAIT_OBJECT_0                 As Long = 0
 Private Const WAIT_TIMEOUT                  As Long = 258
@@ -458,6 +468,7 @@ Private Declare Function WaitForMultipleObjects Lib "kernel32" (ByVal nCount As 
 Private Declare Function CancelIo Lib "kernel32" (ByVal hFile As Long) As Long
 Private Declare Sub Sleep Lib "kernel32" (ByVal dwMilliseconds As Long)
 Private Declare Function PurgeComm Lib "kernel32" (ByVal hFile As Long, ByVal dwFlags As Long) As Long
+Private Declare Function GetOverlappedResult Lib "kernel32" (ByVal hFile As Long, lpOverlapped As OVERLAPPED, lpNumberOfBytesTransferred As Long, ByVal bWait As Long) As Long
 
 Private Type COMMTIMEOUTS
     ReadIntervalTimeout         As Long
@@ -514,6 +525,9 @@ Private Const STR_STATUSES              As String = "Syntax error|Invalid comman
 Private Const STR_ERRORS_ONLY           As String = "Syntax error|Invalid command|2|3|Feed error|5|6|7|1|Command not allowed|Memory reset|3|Memory corrupt|5|6|7|Out of paper|1|2|3|4|5|6|7"
 Private Const STR_DIP_SWITCHES          As String = "Center header and footer|Enable header|Sw1.3|Sw1.4|Zero memory|Transparent display|No display|7"
 Private Const STR_MEMORY                As String = "Write error|1|No memory module|Memory low|Out of memory|Fiscal memory error|6|7|Read only|Memory formatted|2|Fiscal mode|Tax rates set|Tax number set|6|7"
+Private Const STR_EXT_ERRORS            As String = "1|Overflow after operation|3|No more sales in this bill|4|No more payments in this bill|5|Attempt to perform zero transaction|6|Attempt to perform a sale, after payment is initiated|7|Operation not allowed|8|TAX group with disabled sales|11|More than one decimal point|12|More than one character '+' or '-'|13|Symbol '+' or '-' is not in the first position|14|Illegal symbol, e.g. barcode contains not only numbers|15|Extra numbers after decimal point|16|Extra characters|20|With current settings cannot process this command from PC|21|Value outside limits|22|Review system parameter 8|23|Attempt to ""deep"" void after discount/surcharge on subtotal|24|Attempt to ""deep"" void of non-existent transaction|25|Attempt to make a payment without having sales|26|Attempt to sell an item with quantity exceeding its stock|41|Barcode is incorrect (wrong checksum)|42|Attempt to sell without barcode|" & _
+                                                    "43|Attempt to program with weight barcode|44|Attempt to sell without programmed barcode|45|Attempt to program already existing barcode|66|Incorrect password|71|!!! Incorrect data in fiscal memory !!!!|72|!!! Error saving in fiscal memory !!!!|76|Information needed from NRA servers|90|Needs a reset with monthly report|91|Needs a reset with daily z-report|92|Needs a reset with report by operators|93|Needs a reset with report by articles|94|Can not reprogram this field|81|Daily z-report overflow|83|Report by operators overflow|84|Report by articles overflow|84|Monthly report overflow|88|Electronic journal overflow|102|No communication between fiscal unit and tax terminal|104|Incorrect communication between fiscal unit and tax terminal|110|SIM card replaced|111|Error in communication between tax terminal and NRA servers|113|NRA server rejects data sent|" & _
+                                                    "117|Failed to connect tax terminal with mobile operator network|118|The operation is denied|119|Incorrect value|120|Missing value"
 Private Const STR_RECEIPT_TEXTS         As String = "CASH|CARD|CHEQUE|CREDIT|SURCHARGE %1|DISCOUNT %1|TOTAL|SUBTOTAL|INVOICE No %1|Sales %1|UNIT PRICE|QUANTITY|VALUE|SUM GROUP %1|VAT %1=%2|NETTO SUM|TOTAL|%1 ITEMS|1 ITEM|CHANGE|SELLER: |RECEIVER: |BUYER: |TAX No: |VAT No: "
 Private Const DEF_AUTODETECTTIMEOUT     As Long = 100
 Private Const DEF_DEVICEINFOTIMEOUT     As Long = 1000
@@ -731,6 +745,10 @@ End Property
 
 Property Get ErrorText() As String
     ErrorText = pvGetFlagsText(m_eStatus, m_uConfig.LocalizedText(ucsFscLciPrinterErrors))
+    If IsDaisy And (m_eDip And &H7F) <> 0 Then
+        ErrorText = IIf(LenB(ErrorText) <> 0, ErrorText & vbCrLf, vbNullString) & _
+            Zn(At(m_uConfig.LocalizedText(ucsFscLciExtendedErrors), m_eDip And &H7F), Printf(pvInternal(ucsErrUnknownError), m_eDip And &H7F))
+    End If
 End Property
 
 Property Get Dip(ByVal eValue As UcsIclDipSwitchesEnum) As Boolean
@@ -738,7 +756,9 @@ Property Get Dip(ByVal eValue As UcsIclDipSwitchesEnum) As Boolean
 End Property
 
 Property Get DipText() As String
-    DipText = pvGetFlagsText(m_eDip, m_uConfig.LocalizedText(ucsFscLciDipSwitchesTexts))
+    If Not IsDaisy Then
+        DipText = pvGetFlagsText(m_eDip, m_uConfig.LocalizedText(ucsFscLciDipSwitchesTexts))
+    End If
 End Property
 
 Property Get Memory(ByVal eValue As UcsIclFiscalMemoryEnum) As Boolean
@@ -778,7 +798,7 @@ Property Get LocalizedText(ByVal eIdx As UcsFiscalLocalizedIndexesEnum) As Strin
 End Property
 
 Property Let LocalizedText(ByVal eIdx As UcsFiscalLocalizedIndexesEnum, sValue As String)
-    m_uConfig.LocalizedText(eIdx) = Split(sValue, "|")
+    m_uConfig.LocalizedText(eIdx) = SplitOrReindex(sValue, "|")
 End Property
 
 Property Get IsEcr() As Boolean
@@ -925,11 +945,15 @@ Public Function AutodetectDevices(vPorts As Variant) As Variant
             With aPorts(lIdx)
                 If .hComm <> 0 Then
                     .Buffer = String$(1000, 0)
+                    lActual = 0
                     lResult = ReadFile(.hComm, ByVal StrPtr(.Buffer), LenB(.Buffer), lActual, .ReadOver)
                     If lResult = 0 And Err.LastDllError = ERROR_IO_PENDING Then
                         hEvents(lEventsCount) = .ReadOver.hEvent
                         lEventsCount = lEventsCount + 1
                     Else
+                        If lActual = 0 Then
+                            Call GetOverlappedResult(.hComm, .ReadOver, lActual, 0)
+                        End If
                         .Buffer = Left$(StrConv(.Buffer, vbUnicode), lActual)
                     End If
                 End If
@@ -1752,7 +1776,7 @@ Public Function GetPaymentName(ByVal Index As Long) As String
         If Not IsDaisy Then
             pvGetCommandConfig CONF_NAME, "InitPaymentType" & Index, eCmd, ucsFpcInitPaymentType, sParam, Chr$(68 + Index)
         Else
-            pvGetCommandConfig CONF_NAME, "InitDaisyText" & Index, eCmd, ucsFpcInitDaisyText, sParam, "R" & (56 + Index)
+            pvGetCommandConfig CONF_NAME, "InitDaisyText" & Index, eCmd, ucsFpcInitDaisyText, sParam, "R" & (58 + Index)
         End If
         GetPaymentName = Trim$(pvStripBold(SendCommand(eCmd, sParam)))
         Exceptions = bPrevExceptions
@@ -1801,7 +1825,7 @@ Public Function CancelReceipt() As Boolean
     If C_Lng(At(Split(SendCommand(eTransCmd, sTransParam), DEF_DELIM), lTransIndex)) <> lTransStatus Then
         If Status(ucsStbFiscalPrinting) Then
             '--- note: FP-3530 can cancel always, FP-550 sometimes can not
-            pvGetCommandConfig CONF_NAME, "FiscalCancel", eCmd, ucsFpcFiscalCancel, sParam, vbNullString
+            pvGetCommandConfig CONF_NAME, "FiscalCancel", eCmd, IIf(Not IsDaisy, ucsFpcFiscalCancel, ucsFpcDaisyFiscalCancel), sParam, vbNullString
             SendCommand eCmd, sParam
             If Status(ucsStbFiscalPrinting) Then
                 '--- note: this helps if sum payed is less than total receipt sum
@@ -1884,22 +1908,24 @@ Public Function GetTotalsByPayments() As Variant
     Dim lJdx            As Long
     Dim eCmd            As UcsIclCommandsEnum
     Dim sParam          As String
+    Dim vIdxMap          As Variant
     
     On Error GoTo EH
-    If IsDaisy Then
-        pvGetCommandConfig CONF_NAME, "DaisyInfoTotalsByVatPayments", eCmd, ucsFpcInfoTotalsByPayments, sParam, "A"
-    Else
+    If Not IsDaisy Then
         pvGetCommandConfig CONF_NAME, "InfoTotalsByVatPayments", eCmd, ucsFpcInfoTotalsByPayments, sParam, vbNullString
+    Else
+        pvGetCommandConfig CONF_NAME, "DaisyInfoTotalsByVatPayments", eCmd, ucsFpcInfoTotalsByPayments, sParam, "A"
     End If
     bPrevExceptions = pvSetExceptions(False)
     vSplit = Split(SendCommand(eCmd, sParam), DEF_DELIM)
     Exceptions = bPrevExceptions
     If UBound(vSplit) > 0 Then
+        '--- WTF?!#@ happened w/ these indexes!
+        vIdxMap = Split(IIf(Not IsDaisy, "0|3|1|2", "0|2|1|4|5|6|7|-1"), "|")
         ReDim vRetVal(0 To 7) As Double
         For lIdx = 0 To UBound(vRetVal)
-            '--- WTF?!#@ happened w/ these indexes!
-            lJdx = At(Split("0|3|1|2", "|"), lIdx, C_Str(lIdx))
-            If lIdx <= UBound(vSplit) - IIf(IsDaisy, 3, 2) Then
+            lJdx = At(vIdxMap, lIdx, C_Str(lIdx))
+            If 0 <= lJdx And lIdx <= UBound(vSplit) - IIf(Not IsDaisy, 2, 3) Then
                 vRetVal(lJdx) = ParseSum(At(vSplit, lIdx))
             End If
         Next
@@ -1926,10 +1952,10 @@ Public Function GetTotalsByVatGroups() As Variant
     
     On Error GoTo EH
     bPrevExceptions = pvSetExceptions(False)
-    If IsDaisy Then
-        pvGetCommandConfig CONF_NAME, "DaisyInfoTotalsByVatGroups0", eCmd, ucsFpcInfoTotalsByVatGroups, sParam, "T"
-    Else
+    If Not IsDaisy Then
         pvGetCommandConfig CONF_NAME, "InfoTotalsByVatGroups0", eCmd, ucsFpcInfoTotalsByVatGroups, sParam, vbNullString
+    Else
+        pvGetCommandConfig CONF_NAME, "DaisyInfoTotalsByVatGroups0", eCmd, ucsFpcInfoTotalsByVatGroups, sParam, "T"
     End If
     vTotals = Split(SendCommand(eCmd, sParam), DEF_DELIM)
     pvGetCommandConfig CONF_NAME, "InfoTotalsByVatGroups1", eCmd, ucsFpcInfoTotalsByVatGroups, sParam, "1"
@@ -2110,6 +2136,14 @@ Public Sub ClearLocalizedCommand(sFunction As String, sKey As String, Optional M
     End If
 End Sub
 
+Public Function GetDefaultPassword(OperatorCode As String) As String
+    If IsEcr Or IsDaisy Then
+        GetDefaultPassword = OperatorCode
+    Else
+        GetDefaultPassword = DEF_PASSWORD
+    End If
+End Function
+
 '= private ===============================================================
 
 Private Function pvOpenPort(sDevice As String, ByVal lTimeout As Long, Optional Error As String) As Long
@@ -2220,6 +2254,7 @@ Private Function pvSendCommand( _
     baText = ToAscii(sSend)
     '--- async send
     Call PurgeComm(hComm, PURGE_TXCLEAR Or PURGE_RXCLEAR)
+    Call SetCommMask(hComm, EV_RXCHAR Or EV_ERR)
 RetrySend:
     lResult = WriteFile(hComm, baText(0), Len(sSend), lWritten, uOver)
     If lResult = 0 Then
@@ -2239,73 +2274,77 @@ RetrySend:
     End If
     '--- async read response
     sText = vbNullString
-    Call SetCommMask(hComm, EV_RXCHAR)
-    GoTo InLoop
     Do
-        lIterTimeout = LimitLong(m_uConfig.CommEventTimeout, , lTimeout - lRetryCount * m_uConfig.CommEventTimeout)
-        lResult = WaitCommEvent(hComm, lMask, uOver)
-        If lResult = 0 Then
-            If Err.LastDllError <> ERROR_IO_PENDING Then
-                DebugLog FUNC_NAME, "WaitCommEvent, Err.LastDllError=" & Err.LastDllError
-                Error = Printf(pvInternal(ucsErrWaitCommEventFailed), GetApiErr(Err.LastDllError))
+        Do While Right$(sText, 1) <> Chr$(3)
+            lIterTimeout = LimitLong(m_uConfig.CommEventTimeout, , lTimeout - lRetryCount * m_uConfig.CommEventTimeout)
+            sBuffer = String$(1000, 0)
+            lActual = 0
+            lResult = ReadFile(hComm, ByVal sBuffer, Len(sBuffer), lActual, uOver)
+            If lResult <> 0 And lActual = 0 Then
+                lResult = WaitCommEvent(hComm, lMask, uOver)
+                If lResult = 0 Then
+                    Select Case Err.LastDllError
+                    Case ERROR_IO_PENDING
+                        lResult = WaitForMultipleObjects(1, uOver.hEvent, 0, lIterTimeout)
+                        Select Case lResult
+                        Case WAIT_OBJECT_0
+                            If GetOverlappedResult(hComm, uOver, lActual, 0) = 0 Then
+                                DebugLog FUNC_NAME, "GetOverlappedResult after WaitCommEvent, eCmd=0x" & Hex(eCmd) & ", Err.LastDllError=" & Err.LastDllError
+                            End If
+                        Case WAIT_TIMEOUT
+                            lRetryCount = lRetryCount + 1
+                        End Select
+                    Case Else
+                        DebugLog FUNC_NAME, "WaitCommEvent, Err.LastDllError=" & Err.LastDllError
+                        Error = Printf(pvInternal(ucsErrWaitCommEventFailed), GetApiErr(Err.LastDllError))
+                        GoTo QH
+                    End Select
+                End If
+                lResult = ReadFile(hComm, ByVal sBuffer, Len(sBuffer), lActual, uOver)
+            End If
+            If lResult = 0 Then
+                Select Case Err.LastDllError
+                Case ERROR_IO_PENDING
+                    lResult = WaitForMultipleObjects(1, uOver.hEvent, 0, lIterTimeout)
+                    Select Case lResult
+                    Case WAIT_OBJECT_0
+                        If GetOverlappedResult(hComm, uOver, lActual, 0) = 0 Then
+                            DebugLog FUNC_NAME, "GetOverlappedResult after ReadFile, eCmd=0x" & Hex(eCmd) & ", Err.LastDllError=" & Err.LastDllError
+                        End If
+                    Case WAIT_TIMEOUT
+                        lRetryCount = lRetryCount + 1
+                    End Select
+                Case ERROR_HANDLE_EOF
+                    lResult = WAIT_OBJECT_0
+                Case Else
+                    DebugLog FUNC_NAME, "ReadFile, eCmd=0x" & Hex(eCmd) & ", Err.LastDllError=" & Err.LastDllError
+                    Error = Printf(pvInternal(ucsErrReadFileFailed), GetApiErr(Err.LastDllError))
+                    GoTo QH
+                End Select
+            End If
+            If lResult <> 0 And lRetryCount * m_uConfig.CommEventTimeout >= lTimeout Then
+                Call CancelIo(hComm)
+                DebugLog FUNC_NAME, "CancelIo after ReadFile, lResult=" & lResult & ", lIterTimeout= " & lIterTimeout & ", m_uConfig.CommEventTimeout=" & m_uConfig.CommEventTimeout & ", lTimeout=" & lTimeout
+                Error = pvInternal(ucsErrTimeoutWaitingForResponse)
                 GoTo QH
             End If
-            lResult = WaitForMultipleObjects(1, uOver.hEvent, 0, lIterTimeout)
-        Else
-            DebugLog FUNC_NAME, "WaitCommEvent, lResult=" & lResult
-            lResult = WAIT_OBJECT_0
-        End If
-        If lResult = WAIT_OBJECT_0 And (lMask And EV_RXCHAR) <> 0 Then
-InLoop:
-            Do
-                sBuffer = String$(1000, 0)
-                lActual = 0
-                lResult = ReadFile(hComm, ByVal sBuffer, Len(sBuffer), lActual, uOver)
-                If lResult = 0 Then
-                    If Err.LastDllError = ERROR_HANDLE_EOF Then
-                        lResult = WAIT_OBJECT_0
-                    Else
-                        If Err.LastDllError <> ERROR_IO_PENDING Then
-                            DebugLog FUNC_NAME, "ReadFile, eCmd=0x" & Hex(eCmd) & ", Err.LastDllError=" & Err.LastDllError
-                            Error = Printf(pvInternal(ucsErrReadFileFailed), GetApiErr(Err.LastDllError))
-                            GoTo QH
-                        End If
-                        lResult = WaitForMultipleObjects(1, uOver.hEvent, 0, lIterTimeout)
-                    End If
-                Else
-                    lResult = WAIT_OBJECT_0
-                End If
-                If lActual = 0 Then
-                    Exit Do
-                End If
-                sBuffer = Left$(sBuffer, lActual)
-                '--- check for NAK (&H15)
-                If InStr(sBuffer, Chr$(&H15)) > 0 Then
-                    lRetryCount = lRetryCount + 1
-                    If lRetryCount * m_uConfig.CommEventTimeout < lTimeout Then
-                        DebugLog FUNC_NAME, "Will retry send on NAK received, sBuffer=0x" & ToHexDump(sBuffer)
-                        GoTo RetrySend
-                    End If
-                    Error = pvInternal(ucsErrInvalidMessageFormatOrChecksum)
-                    GoTo QH
-                End If
-                '--- remove SYN (&H16)
-                sText = sText & Replace(sBuffer, Chr$(&H16), vbNullString)
-            Loop
-        End If
-        If lResult <> WAIT_OBJECT_0 Then
-            Call CancelIo(hComm)
-            DebugLog FUNC_NAME, "CancelIo after ReadFile, lResult=" & lResult & ", lIterTimeout= " & lIterTimeout & ", m_uConfig.CommEventTimeout=" & m_uConfig.CommEventTimeout & ", lTimeout=" & lTimeout
-            If lResult = WAIT_TIMEOUT Then
+            If lActual = 0 Then
+                Exit Do
+            End If
+            sBuffer = Left$(sBuffer, lActual)
+            '--- check for NAK (&H15)
+            If InStr(sBuffer, Chr$(&H15)) > 0 Then
                 lRetryCount = lRetryCount + 1
                 If lRetryCount * m_uConfig.CommEventTimeout < lTimeout Then
-                    DebugLog FUNC_NAME, "Will retry send, lRetryCount=" & lRetryCount & ", sText=0x" & ToHexDump(sText)
+                    DebugLog FUNC_NAME, "Will retry send on NAK received, sBuffer=0x" & ToHexDump(sBuffer)
                     GoTo RetrySend
                 End If
-                Error = pvInternal(ucsErrTimeoutWaitingForResponse)
+                Error = pvInternal(ucsErrInvalidMessageFormatOrChecksum)
+                GoTo QH
             End If
-            GoTo QH
-        End If
+            '--- remove SYN (&H16)
+            sText = sText & Replace(sBuffer, Chr$(&H16), vbNullString)
+        Loop
 RetryParse:
         '--- check if response complete (3 = Terminator)
         If Right$(sText, 1) = Chr$(3) Then
@@ -2751,7 +2790,7 @@ Private Function pvPrintReceipt(uCtx As UcsContext, uRow() As UcsRowData, ByVal 
             Select Case .PrintRowType
             Case ucsFscRetFiscal, ucsFscRetInvoiceFiscal
                 If .PmtType <> 0 Then
-                    pvGetCommandConfig CONF_NAME, "PaymentTypes", 0, 0, sParam, "PDCNIJKL"
+                    pvGetCommandConfig CONF_NAME, "PaymentTypes", 0, 0, sParam, IIf(Not IsDaisy, "PDCNIJKL", "PCNCDB")
                     sType = Mid$(sParam, .PmtType, 1)
                     If .PmtType > 4 Then
                         bPrevExceptions = pvSetExceptions(False)
@@ -3211,6 +3250,7 @@ Private Sub Class_Initialize()
     LocalizedText(ucsFscLciPrinterErrors) = STR_ERRORS_ONLY
     LocalizedText(ucsFscLciDipSwitchesTexts) = STR_DIP_SWITCHES
     LocalizedText(ucsFscLciMemoryTexts) = STR_MEMORY
+    LocalizedText(ucsFscLciExtendedErrors) = STR_EXT_ERRORS
     m_uConfig.CommEventTimeout = DEF_COMM_EVENT_TIMEOUT * 2
     Set m_uConfig.ConfigCommands = GetConfigCollection(STR_PROTOCOL_DATECS_FP, "Commands")
 End Sub
@@ -3281,11 +3321,7 @@ Private Function IDeviceProtocol_GetCommandLog() As String
 End Function
 
 Private Function IDeviceProtocol_GetDefaultPassword(OperatorCode As String) As String
-    If IsEcr Or IsDaisy Then
-        IDeviceProtocol_GetDefaultPassword = OperatorCode
-    Else
-        IDeviceProtocol_GetDefaultPassword = DEF_PASSWORD
-    End If
+    IDeviceProtocol_GetDefaultPassword = GetDefaultPassword(OperatorCode)
 End Function
 
 Private Function IDeviceProtocol_GetDeviceModel() As String
