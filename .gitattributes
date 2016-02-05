@@ -1,5 +1,5 @@
 # Auto detect text files and perform LF normalization
-* text=auto encoding=cp1251
+* text=auto eol=crlf encoding=cp1251
 
 # Custom for Visual Studio
 *.cs     diff=csharp
