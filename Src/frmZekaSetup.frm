@@ -2348,15 +2348,21 @@ Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
 '=========================================================================
-' $Header: /UcsFiscalPrinter/Src/frmZekaSetup.frm 10    28.01.16 16:00 Wqw $
+' $Header: /UcsFiscalPrinter/Src/frmZekaSetup.frm 12    26.06.18 16:31 Wqw $
 '
 '   Unicontsoft Fiscal Printers Project
-'   Copyright (c) 2008-2014 Unicontsoft
+'   Copyright (c) 2008-2018 Unicontsoft
 '
 '   Nastrojki na FP po Zeka protocol
 '
 ' $Log: /UcsFiscalPrinter/Src/frmZekaSetup.frm $
 ' 
+' 12    26.06.18 16:31 Wqw
+' REF: time format
+'
+' 11    28.05.18 16:38 Wqw
+' REF: uses GetErrorTempPath
+'
 ' 10    28.01.16 16:00 Wqw
 ' REF: disp invoke params
 '
@@ -2873,7 +2879,7 @@ Private Function pvSaveData(ByVal eCommand As UcsCommands) As Boolean
         End If
     Case ucsCmdDateTime
         dDate = C_Date(txtDateDate.Text) + C_Date(txtDateTime.Text)
-        m_oFP.SendCommand ucsZekCmdInitDateTime, Format$(dDate, "dd-MM-yy") & " " & Format$(dDate, "hh:mm:ss")
+        m_oFP.SendCommand ucsZekCmdInitDateTime, Format$(dDate, "dd\-MM\-yy") & " " & Format$(dDate, "hh\:nn\:ss")
         If LenB(m_oFP.LastError) <> 0 Then
             GoTo QH
         End If
@@ -3375,8 +3381,8 @@ Private Sub scbLogoHor_Scroll()
 End Sub
 
 Private Sub tmrDate_Timer()
-    txtDateCompDate.Text = Format$(Now, "dd-MM-yyyy")
-    txtDateCompTime.Text = Format$(Now, "hh:mm:ss")
+    txtDateCompDate.Text = Format$(Now, "dd\-MM\-yyyy")
+    txtDateCompTime.Text = Format$(Now, "hh\:nn\:ss")
 End Sub
 
 Private Sub cmdDateTransfer_Click()
@@ -3412,7 +3418,7 @@ Private Function pvLoadBmp(baData() As Byte) As StdPicture
     Dim nFile           As Integer
     Dim sFile           As String
     
-    sFile = Environ$("TEMP") & "\~tmp" & Timer * 100 & ".bmp"
+    sFile = GetErrorTempPath() & "\~tmp" & Timer * 100 & ".bmp"
     On Error Resume Next '--- checked
     SetAttr sFile, vbArchive
     Kill sFile

@@ -1,14 +1,32 @@
 Attribute VB_Name = "mdGlobals"
 '=========================================================================
-' $Header: /UcsFiscalPrinter/Src/mdGlobals.bas 35    1.02.16 17:17 Wqw $
+' $Header: /UcsFiscalPrinter/Src/mdGlobals.bas 41    13.06.18 12:20 Wqw $
 '
 '   Unicontsoft Fiscal Printers Project
-'   Copyright (c) 2008-2016 Unicontsoft
+'   Copyright (c) 2008-2018 Unicontsoft
 '
 '   Global functions, constants and variables
 '
 ' $Log: /UcsFiscalPrinter/Src/mdGlobals.bas $
 ' 
+' 41    13.06.18 12:20 Wqw
+' REF: params na ToAscii
+'
+' 40    28.05.18 16:37 Wqw
+' REF: uses GetErrorTempPath
+'
+' 39    15.05.18 12:28 Wqw
+' REF: gdip startip, disp invoke
+'
+' 38    14.05.18 12:37 Wqw
+' REF: init device connector
+'
+' 37    25.04.18 10:43 Wqw
+' ADD: WrapMultiline, InitDeviceConnector
+'
+' 36    2.02.16 15:18 Wqw
+' REF: property lock control [let]
+'
 ' 35    1.02.16 17:17 Wqw
 ' ADD: Function SplitOrReindex
 '
@@ -204,30 +222,30 @@ Private Declare Function RegCloseKey Lib "advapi32.dll" (ByVal hKey As Long) As 
 Private Declare Function APIGetSystemDirectory Lib "kernel32" Alias "GetSystemDirectoryA" (ByVal lpBuffer As String, ByVal nSize As Long) As Long
 Private Declare Function ExpandEnvironmentStrings Lib "kernel32" Alias "ExpandEnvironmentStringsA" (ByVal lpSrc As String, ByVal lpDst As String, ByVal nSize As Long) As Long
 Private Declare Function GetOpenFileName Lib "comdlg32.dll" Alias "GetOpenFileNameA" (pOpenfilename As OPENFILENAME) As Long
-Private Declare Function CreateDIBSection Lib "gdi32" (ByVal hDC As Long, lpBitsInfo As BITMAPINFOHEADER, ByVal wUsage As Long, lpBits As Long, ByVal handle As Long, ByVal dw As Long) As Long
+Private Declare Function CreateDIBSection Lib "gdi32" (ByVal hDC As Long, lpBitsInfo As BITMAPINFOHEADER, ByVal wUsage As Long, lpBits As Long, ByVal Handle As Long, ByVal dw As Long) As Long
 Private Declare Function CreateCompatibleDC Lib "gdi32" (ByVal hDC As Long) As Long
 Private Declare Function SelectObject Lib "gdi32" (ByVal hDC As Long, ByVal hObject As Long) As Long
 Private Declare Function DeleteObject Lib "gdi32" (ByVal hObject As Long) As Long
 Private Declare Function ArrPtr Lib "msvbvm60" Alias "VarPtr" (Ptr() As Any) As Long
 Private Declare Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (lpDst As Any, lpSrc As Any, ByVal ByteLength As Long)
+Private Declare Function GetModuleHandle Lib "kernel32" Alias "GetModuleHandleA" (ByVal lpModuleName As String) As Long
+Private Declare Function GdiplusStartup Lib "gdiplus" (hToken As Long, inputBuf As Any, Optional ByVal outputBuf As Long = 0) As Long
 Private Declare Function GdipLoadImageFromFile Lib "gdiplus" (ByVal mFilename As Long, ByRef mImage As Long) As Long
 Private Declare Function GdipDeleteGraphics Lib "gdiplus" (ByVal mGraphics As Long) As Long
 Private Declare Function GdipCreateFromHDC Lib "gdiplus" (ByVal hDC As Long, hGraphics As Long) As Long
 Private Declare Function GdipDrawImageRectI Lib "gdiplus" (ByVal Graphics As Long, ByVal img As Long, ByVal X As Long, ByVal Y As Long, ByVal Width As Long, ByVal Height As Long) As Long
 Private Declare Function GdipDisposeImage Lib "gdiplus" (ByVal Image As Long) As Long
-Private Declare Function GdiplusStartup Lib "gdiplus" (Token As Long, inputbuf As GDIPLUS_STARTUP_INPUT, Optional ByVal outputbuf As Long = 0) As Long
 Private Declare Function GdipGetImageDimension Lib "gdiplus" (ByVal Image As Long, ByRef Width As Single, ByRef Height As Single) As Long
 Private Declare Function GdipCreateSolidFill Lib "gdiplus" (ByVal Color As Long, ByRef Brush As Long) As Long
 Private Declare Function GdipFillRectangleI Lib "gdiplus" (ByVal Graphics As Long, ByVal Brush As Long, ByVal X As Long, ByVal Y As Long, ByVal Width As Long, ByVal Height As Long) As Long
 Private Declare Function GdipDeleteBrush Lib "gdiplus" (ByVal Brush As Long) As Long
 Private Declare Function ApiEmptyDoubleArray Lib "oleaut32" Alias "SafeArrayCreateVector" (Optional ByVal vt As VbVarType = vbDouble, Optional ByVal lLow As Long = 0, Optional ByVal lCount As Long = 0) As Double()
-Private Declare Function ApiEmptyVariantArray Lib "oleaut32" Alias "SafeArrayCreateVector" (Optional ByVal vt As VbVarType = vbVariant, Optional ByVal lLow As Long = 0, Optional ByVal lCount As Long = 0) As Variant()
 Private Declare Function IsTextUnicode Lib "advapi32" (lpBuffer As Any, ByVal cb As Long, lpi As Long) As Long
 Private Declare Function GetFileAttributes Lib "kernel32" Alias "GetFileAttributesA" (ByVal lpFileName As String) As Long
 Private Declare Function VariantChangeType Lib "oleaut32" (dest As Variant, src As Variant, ByVal wFlags As Integer, ByVal vt As Long) As Long
-Private Declare Function VariantCopy Lib "oleaut32" (dest As Variant, src As Variant) As Long
 Private Declare Function WideCharToMultiByte Lib "kernel32" (ByVal CodePage As Long, ByVal dwFlags As Long, ByVal lpWideCharStr As Long, ByVal cchWideChar As Long, lpMultiByteStr As Any, ByVal cchMultiByte As Long, ByVal lpDefaultChar As Long, ByVal lpUsedDefaultChar As Long) As Long
 Private Declare Function GetSystemTimeAsFileTime Lib "kernel32.dll" (lpSystemTimeAsFileTime As Currency) As Long
+Private Declare Function GetTempPath Lib "kernel32" Alias "GetTempPathA" (ByVal nBufferLength As Long, ByVal lpBuffer As String) As Long
 
 Private Type OPENFILENAME
     lStructSize         As Long     ' size of type/structure
@@ -243,7 +261,7 @@ Private Type OPENFILENAME
     nMaxFileTitle       As Long     ' Max Length of filename
     lpstrInitialDir     As Long     ' Starting Directory
     lpstrTitle          As Long     ' Title of window
-    flags               As Long
+    Flags               As Long
     nFileOffset         As Integer
     nFileExtension      As Integer
     lpstrDefExt         As Long
@@ -307,13 +325,6 @@ Private Type SAFEARRAY2D
     Bounds(0 To 1)      As SAFEARRAYBOUND
 End Type
 
-Private Type GDIPLUS_STARTUP_INPUT
-    GdiplusVersion           As Long
-    DebugEventCallback       As Long
-    SuppressBackgroundThread As Long
-    SuppressExternalCodecs   As Long
-End Type
-
 Private Type BMPFILE_HEADER
     filesz              As Long
     creator1            As Integer
@@ -357,11 +368,11 @@ Public Const STR_PROTOCOL_ELTRADE_ECR As String = "ELTRADE ECR"
 Public Const STR_PROTOCOL_DATECS_FP As String = "DATECS FP/ECR"
 Public Const STR_PROTOCOL_DAISY_ECR As String = "DAISY FP/ECR"
 Public Const STR_PROTOCOL_ZEKA_FP   As String = "TREMOL ECR"
-Public Const CHR1                   As String = "" '--- Chr$(1)
+Public Const STR_PROTOCOL_ESP_POS   As String = "ESC/POS"
+Public Const STR_CHR1               As String = "" '--- CHAR(1)
 Public Const DBL_EPSILON            As Double = 0.0000000001
 
 Private m_sDecimalSeparator     As String
-Private m_hGdiPlus              As Long
 Private m_oConfig               As Object
 Private m_oPortWrapper          As cPortWrapper
 Private m_nDebugLogFile         As Integer
@@ -606,7 +617,7 @@ Public Sub OutputDebugLog(sModule As String, sFunc As String, sText As String)
     If m_nDebugLogFile = 0 Then
         sFile = Environ$("_UCS_FISCAL_PRINTER_LOG")
         If LenB(sFile) = 0 Then
-            sFile = Environ$("TEMP") & "\UcsFP.log"
+            sFile = GetErrorTempPath() & "\UcsFP.log"
             If Not FileExists(sFile) Then
                 m_nDebugLogFile = -1
                 GoTo QH
@@ -692,6 +703,25 @@ Public Function IsWhiteSpace(sText As String) As Boolean
     If InStr(1, STR_WHITESPACE, Left$(sText, 1)) > 0 Then
         IsWhiteSpace = True
     End If
+End Function
+
+Public Function WrapMultiline(ByVal sText As String, ByVal lWidth As Long) As Variant
+    Dim vElem           As Variant
+    Dim vRetVal         As Variant
+    Dim lIdx            As Long
+    
+    For Each vElem In Split(sText, vbCrLf)
+        vElem = WrapText(C_Str(vElem), lWidth)
+        If Not IsArray(vRetVal) Then
+            vRetVal = vElem
+        Else
+            ReDim Preserve vRetVal(0 To UBound(vRetVal) + UBound(vElem) + 1) As Variant
+            For lIdx = 0 To UBound(vElem)
+                vRetVal(UBound(vRetVal) - UBound(vElem) + lIdx) = vElem(lIdx)
+            Next
+        End If
+    Next
+    WrapMultiline = vRetVal
 End Function
 
 Public Function WrapText(ByVal sText As String, ByVal lWidth As Long) As Variant
@@ -812,7 +842,7 @@ Public Function AlignText( _
             ByVal sRight As String, _
             ByVal lWidth As Long) As String
     sLeft = Left$(sLeft, lWidth)
-    If Left$(sRight, 1) = Chr$(1) Then
+    If Left$(sRight, 1) = STR_CHR1 Then
         sRight = String$(lWidth - Len(sLeft), Right$(sRight, 1))
     Else
         sRight = Right$(sRight, lWidth)
@@ -964,7 +994,7 @@ Public Function OpenSaveDialog(ByVal hWndOwner As Long, ByVal sFilter As String,
     Else
         uOFN.lStructSize = Len(uOFN) - 12
     End If
-    uOFN.flags = OFN_LONGNAMES Or OFN_CREATEPROMPT Or OFN_HIDEREADONLY Or OFN_EXTENSIONDIFFERENT Or OFN_EXPLORER Or OFN_ENABLESIZING
+    uOFN.Flags = OFN_LONGNAMES Or OFN_CREATEPROMPT Or OFN_HIDEREADONLY Or OFN_EXTENSIONDIFFERENT Or OFN_EXPLORER Or OFN_ENABLESIZING
     uOFN.hWndOwner = hWndOwner
     uOFN.lpstrFilter = VarPtr(baFilter(0))
     uOFN.nFilterIndex = 1
@@ -1008,6 +1038,7 @@ Public Function ConvertToBW( _
     Dim sngWidth        As Single
     Dim sngHeight       As Single
     Dim hBrush          As Long
+    Dim aInput(0 To 3)  As Long
 
     On Error GoTo EH
     hDC = CreateCompatibleDC(0)
@@ -1033,6 +1064,11 @@ Public Function ConvertToBW( _
                 .pvData = lpBits
             End With
             Call CopyMemory(ByVal ArrPtr(aBitsRGB()), VarPtr(uSA), 4)
+            '--- start gdi+
+            If GetModuleHandle("gdiplus") = 0 Then
+                aInput(0) = 1
+                Call GdiplusStartup(0, aInput(0))
+            End If
             '--- stretch bitmap to DIB
             If GdipCreateFromHDC(hDC, hGraphics) = 0 Then
                 If bCenter Then
@@ -1096,11 +1132,11 @@ EH:
 End Function
 
 Public Function GdipLoadImage(sFile As String) As Long
-    Dim uStartup        As GDIPLUS_STARTUP_INPUT
+    Dim aInput(0 To 3)  As Long
     
-    If m_hGdiPlus = 0 Then
-        uStartup.GdiplusVersion = 1&
-        Call GdiplusStartup(m_hGdiPlus, uStartup)
+    If GetModuleHandle("gdiplus") = 0 Then
+        aInput(0) = 1
+        Call GdiplusStartup(0, aInput(0))
     End If
     Call GdipLoadImageFromFile(StrPtr(sFile), GdipLoadImage)
 End Function
@@ -1122,10 +1158,6 @@ End Function
 
 Public Function EmptyDoubleArray() As Double()
     EmptyDoubleArray = ApiEmptyDoubleArray()
-End Function
-
-Public Function EmptyVariantArray() As Variant()
-    EmptyVariantArray = ApiEmptyVariantArray()
 End Function
 
 Public Function FileExists(sFile As String) As Boolean
@@ -1296,13 +1328,13 @@ Public Sub AssignVariant(vDest As Variant, vSrc As Variant)
     End If
 End Sub
 
-Public Function preg_replace(sPattern As String, sReplace As String, sText As String) As String
-    preg_replace = pvInitRegExp(sPattern).Replace(sText, sReplace)
+Public Function preg_replace(find_re As String, sText As String, Optional sReplace As String) As String
+    preg_replace = pvInitRegExp(find_re).Replace(sText, sReplace)
 End Function
 
 Private Function pvInitRegExp(sPattern As String) As Object
     Dim lIdx            As Long
-    
+
     Set pvInitRegExp = CreateObject("VBScript.RegExp")
     With pvInitRegExp
         .Global = True
@@ -1378,6 +1410,7 @@ Public Function DispInvoke( _
             Optional Args As Variant, _
             Optional RetVal As Variant) As Boolean
     Const DISPID_PROPERTYPUT As Long = -3
+    Const VT_BYREF      As Long = &H4000
     Dim IID_NULL        As VBGUID
     Dim lDispID         As Long
     Dim hResult         As Long
@@ -1389,6 +1422,7 @@ Public Function DispInvoke( _
     Dim lParamCount     As Long
     Dim lArgErr         As Long
     Dim lPtrResult      As Long
+    Dim vRetVal         As Variant
 
     If pDisp Is Nothing Then
         Exit Function
@@ -1411,11 +1445,11 @@ Public Function DispInvoke( _
             lParamCount = UBound(Args) - LBound(Args)
             ReDim aParams(0 To lParamCount) As Variant
             For lIdx = 0 To lParamCount
-                Call VariantCopy(aParams(lParamCount - lIdx), Args(lIdx))
+                Call AssignVariant(aParams(lParamCount - lIdx), Args(lIdx))
             Next
         Else
             ReDim aParams(0 To 0) As Variant
-            Call VariantCopy(aParams(0), Args)
+            Call AssignVariant(aParams(0), Args)
         End If
         With uParams
             .cArgs = lParamCount + 1
@@ -1430,18 +1464,40 @@ Public Function DispInvoke( _
         End If
     End If
     If (CallType And ucsIclPropGet) <> 0 Or (CallType And ucsIclMethod) <> 0 And Not IsMissing(RetVal) Then
-        RetVal = Empty
         lPtrResult = VarPtr(RetVal)
+        If (PeekInt(lPtrResult) And VT_BYREF) = 0 Then
+            If IsObject(RetVal) Then
+                Set RetVal = Nothing
+            Else
+                RetVal = Empty
+            End If
+        Else
+            lPtrResult = VarPtr(vRetVal)
+            If IsObject(RetVal) Then
+                Set vRetVal = Nothing
+            Else
+                vRetVal = Empty
+            End If
+        End If
     End If
     hResult = pDisp.Invoke(lDispID, IID_NULL, LOCALE_USER_DEFAULT, CallType, uParams, ByVal lPtrResult, uInfo, lArgErr)
     If hResult < 0 Then
         GoTo QH
     End If
+    If lPtrResult = VarPtr(vRetVal) Then
+        If IsObject(vRetVal) Then
+            Set RetVal = vRetVal
+        Else
+            RetVal = vRetVal
+        End If
+    End If
     '--- success
     DispInvoke = True
     Exit Function
 QH:
-    RetVal = Array(hResult, uInfo.sCode, uInfo.Description, uInfo.Source)
+    If VarType(RetVal) = vbVariant Then
+        RetVal = Array(hResult, uInfo.sCode, uInfo.Description, uInfo.Source)
+    End If
 End Function
 
 Public Function DispPropertyGet(pDisp As Object, PropName As String, Optional RetVal As Variant) As Variant
@@ -1461,7 +1517,7 @@ Public Property Get LockControl(oCtl As Object) As Boolean
 End Property
 
 Public Property Let LockControl(oCtl As Object, ByVal bValue As Boolean)
-    If DispInvoke(oCtl, "Locked", ucsIclPropLet, Args:=bValue) Then
+    If DispInvoke(oCtl, "Locked", ucsIclPropLet, Args:=bValue) Or TypeOf oCtl Is ListBox Then
         DispInvoke oCtl, "BackColor", ucsIclPropLet, Args:=IIf(bValue, vbButtonFace, vbWindowBackground)
     Else
         DispInvoke oCtl, "Enabled", ucsIclPropLet, Args:=Not bValue
@@ -1476,14 +1532,14 @@ Public Function ParseSum(sValue As String) As Double
     End If
 End Function
 
-Public Function ToAscii(sSend As String) As Byte()
+Public Function ToAscii(sSend As String, Optional ByVal CodePage As Long) As Byte()
     Dim lSize           As Long
     Dim baText()        As Byte
     
     lSize = Len(sSend)
     If lSize > 0 Then
         ReDim baText(0 To lSize - 1) As Byte
-        Call WideCharToMultiByte(0, 0, StrPtr(sSend), lSize, baText(0), Len(sSend), 0, 0)
+        Call WideCharToMultiByte(CodePage, 0, StrPtr(sSend), lSize, baText(0), Len(sSend), 0, 0)
     Else
         baText = " "
     End If
@@ -1506,6 +1562,54 @@ Public Function SplitOrReindex(Expression As String, Delimiter As String) As Var
             vResult(C_Lng(At(SplitOrReindex, lIdx))) = At(SplitOrReindex, lIdx + 1)
         Next
         SplitOrReindex = vResult
+    End If
+End Function
+
+Public Function InitDeviceConnector( _
+            sDevice As String, _
+            ByVal lTimeout As Long, _
+            Optional LocalizedConnectorErrors As String, _
+            Optional Error As String) As IDeviceConnector
+    Dim oSerialPortConn As cSerialPortConnector
+    Dim oSocketConn     As cSocketConnector
+    
+    If LCase$(Left$(sDevice, 3)) = "com" Then
+        Set oSerialPortConn = New cSerialPortConnector
+        If LenB(LocalizedConnectorErrors) <> 0 Then
+            oSerialPortConn.LocalizedText(ucsFscLciInternalErrors) = LocalizedConnectorErrors
+        End If
+        If Not oSerialPortConn.Init(sDevice, lTimeout) Then
+            Error = oSerialPortConn.GetLastError()
+            GoTo QH
+        End If
+        Set InitDeviceConnector = oSerialPortConn
+    Else
+        Set oSocketConn = New cSocketConnector
+        If Not oSocketConn.Init(sDevice, lTimeout) Then
+            Error = oSocketConn.GetErrorDescription(oSocketConn.LastError)
+            GoTo QH
+        End If
+        Set InitDeviceConnector = oSocketConn
+    End If
+QH:
+End Function
+
+Public Function Peek(ByVal lPtr As Long) As Long
+    Call CopyMemory(Peek, ByVal lPtr, 4)
+End Function
+
+Public Function PeekInt(ByVal lPtr As Long) As Integer
+    Call CopyMemory(PeekInt, ByVal lPtr, 2)
+End Function
+
+Public Function GetErrorTempPath() As String
+    Dim sBuffer         As String
+    
+    sBuffer = String$(2000, 0)
+    Call GetTempPath(Len(sBuffer) - 1, sBuffer)
+    GetErrorTempPath = Left$(sBuffer, InStr(sBuffer, vbNullChar) - 1)
+    If Right$(GetErrorTempPath, 1) = "\" Then
+        GetErrorTempPath = Left$(GetErrorTempPath, Len(GetErrorTempPath) - 1)
     End If
 End Function
 
