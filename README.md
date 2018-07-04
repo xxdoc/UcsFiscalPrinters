@@ -20,6 +20,6 @@ UcsFP supports remoting through COM+ so a single fiscal device can be used by mu
  - Tremol ZM-KL (in production)
  - Eltrade A300 (legacy, development only)
  - Daisy Perfect S-KL, FX1300-KL (development only)
- - Tremol EP-80250, Epson TM-T88III (non-fiscal "kitchen" receipts)
+ - Tremol EP-80250, Epson TM-T88III ("kitchen" order lists)
  
 Enjoy!
