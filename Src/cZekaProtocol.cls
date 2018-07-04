@@ -12,15 +12,27 @@ Attribute VB_Creatable = True
 Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = True
 '=========================================================================
-' $Header: /UcsFiscalPrinter/Src/cZekaProtocol.cls 41    20.11.15 16:39 Wqw $
+' $Header: /UcsFiscalPrinter/Src/cZekaProtocol.cls 45    26.06.18 16:30 Wqw $
 '
 '   Unicontsoft Fiscal Printers Project
-'   Copyright (c) 2008-2015 Unicontsoft
+'   Copyright (c) 2008-2018 Unicontsoft
 '
 '   Protocol handler for Tremol/Zeka cash registers & FP
 '
 ' $Log: /UcsFiscalPrinter/Src/cZekaProtocol.cls $
 ' 
+' 45    26.06.18 16:30 Wqw
+' REF: copy last receipt params
+'
+' 44    13.06.18 12:20 Wqw
+' REF: Init params
+'
+' 43    15.05.18 12:29 Wqw
+' REF: empty variant array
+'
+' 42    25.04.18 10:41 Wqw
+' REF: start receipt params
+'
 ' 41    20.11.15 16:39 Wqw
 ' REF: optional param of EndReceipt impl of IDeviceProtocol interface
 '
@@ -763,7 +775,8 @@ End Function
 Public Function Init( _
             sDevice As String, _
             Optional ByVal Timeout As Long, _
-            Optional ByVal CashDeskNo As Long) As Boolean
+            Optional ByVal CashDeskNo As Long, _
+            Optional ByVal RowChars As Long) As Boolean
     Const FUNC_NAME     As String = "Init"
     Const CONF_NAME     As String = FUNC_NAME
     Dim vSplit          As Variant
@@ -799,7 +812,7 @@ Public Function Init( _
     sSerial = At(m_vInfoDiagnostics, lSerialIndex)
     With m_uConfig
         .IsEcr = vbUseDefault
-        .RowChars = GetConfigNumber(sSerial, "RowChars", 0)
+        .RowChars = GetConfigNumber(sSerial, "RowChars", RowChars)
         .MaxReceiptRows = GetConfigNumber(sSerial, "MaxReceiptRows", DEF_MAX_RECEIPT_ROWS)
         .MinDiscount = GetConfigNumber(sSerial, "MinDiscount", DEF_MIN_DISCOUNT)
         .MaxDiscount = GetConfigNumber(sSerial, "MaxDiscount", DEF_MAX_DISCOUNT)
@@ -1159,7 +1172,7 @@ Public Function EndReceipt(sResumeTicket As String) As Boolean
         GoTo QH
     End If
     '--- restore context
-    vSplit = Split(sResumeTicket, CHR1)
+    vSplit = Split(sResumeTicket, STR_CHR1)
     With m_uCtxPrint
         For lIdx = LBound(.GrpTotal) To UBound(.GrpTotal)
             .GrpTotal(lIdx) = C_Dbl(At(vSplit, lPos)): lPos = lPos + 1
@@ -1202,9 +1215,9 @@ Public Function GetResumeTicket() As String
         With m_uCtxPrint
             If .PmtPrinted Then
                 For lIdx = LBound(.GrpTotal) To UBound(.GrpTotal)
-                    GetResumeTicket = GetResumeTicket & .GrpTotal(lIdx) & CHR1
+                    GetResumeTicket = GetResumeTicket & .GrpTotal(lIdx) & STR_CHR1
                 Next
-                GetResumeTicket = GetResumeTicket & .Paid & CHR1 & .PluCount & CHR1 & -.PmtPrinted & CHR1 & -.ChangePrinted & CHR1 & .Row
+                GetResumeTicket = GetResumeTicket & .Paid & STR_CHR1 & .PluCount & STR_CHR1 & -.PmtPrinted & STR_CHR1 & -.ChangePrinted & STR_CHR1 & .Row
             End If
         End With
     End Select
@@ -1214,7 +1227,7 @@ EH:
     RaiseError FUNC_NAME
 End Function
 
-Public Function CopyLastReceipt() As Boolean
+Public Function CopyLastReceipt(Optional ReceiptNumber As String) As Boolean
     Const FUNC_NAME     As String = "CopyLastReceipt"
     Const CONF_NAME     As String = FUNC_NAME
     Dim eCmd            As UcsZekaCommandsEnum
@@ -1224,20 +1237,32 @@ Public Function CopyLastReceipt() As Boolean
     Dim lPrintTimeout   As Long
     
     On Error GoTo EH
-    sPrevReceiptNo = GetLastReceiptNumber()
-    pvGetCommandConfig CONF_NAME, "PrintDuplicate", eCmd, ucsZekCmdPrintDuplicate, sParam, vbNullString, _
-        "PrintTimeout", lPrintTimeout, 0
-    SendCommand eCmd, sParam
-    If Not LenB(m_sLastError) = 0 Then
-        GoTo QH
-    End If
-    If Not WaitDevice(Znl(lPrintTimeout, DEF_PRINT_TIMEOUT)) Then
-        GoTo QH
-    End If
-    sReceiptNo = GetLastReceiptNumber()
-    If LenB(sReceiptNo) = 0 Or sReceiptNo = sPrevReceiptNo Then
-        pvSetLastError At(m_uConfig.LocalizedText(ucsFscLciPrinterStatuses), ucsErrIllegalCommand)
-        GoTo QH
+    If LenB(ReceiptNumber) = 0 Then
+        sPrevReceiptNo = GetLastReceiptNumber()
+        pvGetCommandConfig CONF_NAME, "PrintDuplicate", eCmd, ucsZekCmdPrintDuplicate, sParam, vbNullString, _
+            "PrintTimeout", lPrintTimeout, 0
+        SendCommand eCmd, sParam
+        If Not LenB(m_sLastError) = 0 Then
+            GoTo QH
+        End If
+        If Not WaitDevice(Znl(lPrintTimeout, DEF_PRINT_TIMEOUT)) Then
+            GoTo QH
+        End If
+        sReceiptNo = GetLastReceiptNumber()
+        If LenB(sReceiptNo) = 0 Or sReceiptNo = sPrevReceiptNo Then
+            pvSetLastError At(m_uConfig.LocalizedText(ucsFscLciPrinterStatuses), ucsErrIllegalCommand)
+            GoTo QH
+        End If
+    Else
+        pvGetCommandConfig CONF_NAME, "PrintReportDaily", eCmd, ucsZekCmdPrintReportDaily, sParam, "J1;N;%1;%1", _
+            "PrintTimeout", lPrintTimeout, 0
+        SendCommand eCmd, Printf(sParam, Pad(ReceiptNumber, 5))
+        If Not LenB(m_sLastError) = 0 Then
+            GoTo QH
+        End If
+        If Not WaitDevice(Znl(lPrintTimeout, DEF_PRINT_TIMEOUT)) Then
+            GoTo QH
+        End If
     End If
     '--- success
     CopyLastReceipt = True
@@ -1271,7 +1296,7 @@ Public Function SetClock(ByVal NewDate As Date) As Boolean
     
     On Error GoTo EH
     pvGetCommandConfig CONF_NAME, "InitDateTime", eCmd, ucsZekCmdInitDateTime, sParam, "%1", _
-        "Format", sFormat, "dd-MM-yy hh:mm:ss", _
+        "Format", sFormat, "dd\-MM\-yy hh\:nn\:ss", _
         "PrintTimeout", lPrintTimeout, 0
     sParam = Printf(sParam, Format$(NewDate, sFormat))
     SendCommand eCmd, sParam
@@ -1683,7 +1708,7 @@ Public Function GetTotalsByPayments() As Variant
         Next
         GetTotalsByPayments = vRetVal
     Else
-        GetTotalsByPayments = EmptyVariantArray
+        GetTotalsByPayments = Array()
     End If
     Exit Function
 EH:
@@ -1712,7 +1737,7 @@ Public Function GetTotalsByVatGroups() As Variant
         Next
         GetTotalsByVatGroups = vRetVal
     Else
-        GetTotalsByVatGroups = EmptyVariantArray
+        GetTotalsByVatGroups = Array()
     End If
     Exit Function
 EH:
@@ -1814,7 +1839,7 @@ End Function
 Public Sub SetLocalizedCommand( _
             sFunction As String, _
             sKey As String, _
-            Optional ByVal Cmd As UcsZekaCommandsEnum, _
+            Optional ByVal cmd As UcsZekaCommandsEnum, _
             Optional Param As String, _
             Optional More As Variant)
     Dim sMerged         As String
@@ -1825,8 +1850,8 @@ Public Sub SetLocalizedCommand( _
     End If
     sMerged = "\" & sFunction & IIf(LenB(sKey) <> 0, "\" & sKey, vbNullString)
     With m_uConfig.LocalizedCommands
-        If Cmd <> 0 Then
-            .Add Cmd, sMerged
+        If cmd <> 0 Then
+            .Add cmd, sMerged
         End If
         If LenB(Param) <> 0 Then
             .Add Param, sMerged & "Param"
@@ -2507,7 +2532,7 @@ Private Function pvPrintReceipt(uCtx As UcsContext, uRow() As UcsRowData, ByVal 
                     End If
                     If .PrintRowType = ucsFscRetInvoiceNonfiscal Then
                         With uRow(0)
-                            pvPrintLine AlignText(pvText(ucsTxtFooterSeller), Chr$(1) & ".", pvRowChars)
+                            pvPrintLine AlignText(pvText(ucsTxtFooterSeller), STR_CHR1 & ".", pvRowChars)
                             pvPrintLine AlignText(vbNullString, "/" & .InitOperatorName & "/", pvRowChars)
                             pvPrintLine CenterText(String(pvRowChars - 10, "-"), pvRowChars)
                             pvPrintLine WrapText(pvText(ucsTxtFooterReceiver) & .InitInvData(ucsInvCompany), pvRowChars)
@@ -2858,8 +2883,8 @@ Private Function IDeviceProtocol_Connect() As Boolean
     IDeviceProtocol_Connect = Connect()
 End Function
 
-Private Function IDeviceProtocol_CopyLastReceipt() As Boolean
-    IDeviceProtocol_CopyLastReceipt = CopyLastReceipt()
+Private Function IDeviceProtocol_CopyLastReceipt(Optional ReceiptNumber As String) As Boolean
+    IDeviceProtocol_CopyLastReceipt = CopyLastReceipt(ReceiptNumber)
 End Function
 
 Private Function IDeviceProtocol_Disconnect() As Boolean
@@ -2963,8 +2988,8 @@ Private Function IDeviceProtocol_GetTotalsStats() As Variant
     IDeviceProtocol_GetTotalsStats = GetTotalsStats()
 End Function
 
-Private Function IDeviceProtocol_Init(Device As String, Optional ByVal Timeout As Long, Optional ByVal CashDeskNo As Long) As Boolean
-    IDeviceProtocol_Init = Init(Device, Timeout, CashDeskNo)
+Private Function IDeviceProtocol_Init(Device As String, Optional ByVal Timeout As Long, Optional ByVal CashDeskNo As Long, Optional ByVal RowChars As Long) As Boolean
+    IDeviceProtocol_Init = Init(Device, Timeout, CashDeskNo, RowChars)
 End Function
 
 Private Property Get IDeviceProtocol_IsConnected() As Boolean
@@ -2995,7 +3020,7 @@ Private Sub IDeviceProtocol_SetLocalizedText(ByVal Index As UcsFiscalLocalizedIn
     LocalizedText(Index) = Text
 End Sub
 
-Private Function IDeviceProtocol_StartReceipt(ByVal ReceiptType As UcsFiscalReceiptTypeEnum, OperatorCode As String, OperatorName As String, OperatorPassword As String, Optional InvNumber As String, Optional InvTaxNumber As String, Optional InvVatNumber As String, Optional InvCompany As String, Optional InvCity As String, Optional InvAddress As String, Optional InvMol As String, Optional InvReceiver As String) As Boolean
+Private Function IDeviceProtocol_StartReceipt(ByVal ReceiptType As UcsFiscalReceiptTypeEnum, OperatorCode As String, OperatorName As String, OperatorPassword As String, Optional TableNo As String, Optional InvNumber As String, Optional InvTaxNumber As String, Optional InvVatNumber As String, Optional InvCompany As String, Optional InvCity As String, Optional InvAddress As String, Optional InvMol As String, Optional InvReceiver As String, Optional OwnData As String) As Boolean
     IDeviceProtocol_StartReceipt = StartReceipt(ReceiptType, OperatorCode, OperatorName, OperatorPassword, InvNumber, InvTaxNumber, InvVatNumber, InvCompany, InvCity, InvAddress, InvMol, InvReceiver)
 End Function
 

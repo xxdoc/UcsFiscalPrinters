@@ -12,15 +12,27 @@ Attribute VB_Creatable = True
 Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = True
 '=========================================================================
-' $Header: /UcsFiscalPrinter/Src/cEltradeProtocol.cls 39    20.11.15 16:39 Wqw $
+' $Header: /UcsFiscalPrinter/Src/cEltradeProtocol.cls 43    26.06.18 16:30 Wqw $
 '
 '   Unicontsoft Fiscal Printers Project
-'   Copyright (c) 2008-2015 Unicontsoft
+'   Copyright (c) 2008-2018 Unicontsoft
 '
 '   Protocol handler for Eltrade cash registers
 '
 ' $Log: /UcsFiscalPrinter/Src/cEltradeProtocol.cls $
 ' 
+' 43    26.06.18 16:30 Wqw
+' REF: copy last receipt params
+'
+' 42    13.06.18 12:20 Wqw
+' REF: Init params
+'
+' 41    15.05.18 12:29 Wqw
+' REF: empty variant array
+'
+' 40    25.04.18 10:41 Wqw
+' REF: start receipt params
+'
 ' 39    20.11.15 16:39 Wqw
 ' REF: optional param of EndReceipt impl of IDeviceProtocol interface
 '
@@ -566,7 +578,8 @@ End Function
 Public Function Init( _
             sDevice As String, _
             Optional ByVal lTimeout As Long, _
-            Optional ByVal lCashDesk As Long) As Boolean
+            Optional ByVal lCashDesk As Long, _
+            Optional ByVal lRowChars As Long) As Boolean
     Const FUNC_NAME     As String = "Init"
     Dim vSplit          As Variant
     
@@ -577,6 +590,7 @@ Public Function Init( _
     m_hComm = INVALID_HANDLE_VALUE
     m_lTimeout = IIf(lTimeout <= 0, DEF_TIMEOUT, lTimeout)
     m_lCashDesk = lCashDesk
+    m_lRowChars = lRowChars
     vSplit = Split(sDevice, ",")
     m_sDevice = Trim$(At(vSplit, 0, "COM1")) & "," & C_Lng(At(vSplit, 1, "9600")) & "," & At(vSplit, 2) & "," & C_Lng(At(vSplit, 3, "8")) & "," & _
         IIf(UCase$(At(vSplit, 4, "N")) = "Y", "Y", "N") & "," & C_Lng(At(vSplit, 5, "1"))
@@ -627,7 +641,6 @@ Public Function Disconnect() As Boolean
     '--- cleanup cache
     m_sHeadingLines = vbNullString
     m_sPaymentTypes = vbNullString
-    m_lRowChars = 0
     '--- success
     Disconnect = True
 QH:
@@ -699,7 +712,7 @@ Public Function WaitDevice(Optional ByVal lWait As Long) As Boolean
             GoTo QH
         End If
         If eRetCmd = ucsEltCmdInfoDeviceStatus - 1 Then
-            Select Case Asc(sResult & Chr$(1))
+            Select Case Asc(sResult & STR_CHR1)
             Case 1
                 pvSetLastError pvInternal(ucsErrOutOfPaper)
                 GoTo QH
@@ -925,7 +938,7 @@ Public Function EndReceipt(sResumeTicket As String) As Boolean
         GoTo QH
     End If
     '--- restore context
-    vSplit = Split(sResumeTicket, CHR1)
+    vSplit = Split(sResumeTicket, STR_CHR1)
     With m_uCtxPrint
         For lIdx = LBound(.GrpTotal) To UBound(.GrpTotal)
             .GrpTotal(lIdx) = C_Dbl(At(vSplit, lPos)): lPos = lPos + 1
@@ -981,14 +994,14 @@ Public Function GetResumeTicket() As String
         With m_uCtxPrint
             If .PmtPrinted Then
                 For lIdx = LBound(.GrpTotal) To UBound(.GrpTotal)
-                    GetResumeTicket = GetResumeTicket & .GrpTotal(lIdx) & CHR1
+                    GetResumeTicket = GetResumeTicket & .GrpTotal(lIdx) & STR_CHR1
                 Next
-                GetResumeTicket = GetResumeTicket & .Keys & CHR1 & .Status & CHR1 & .ItemChars & CHR1 & .PluNo & CHR1
+                GetResumeTicket = GetResumeTicket & .Keys & STR_CHR1 & .Status & STR_CHR1 & .ItemChars & STR_CHR1 & .PluNo & STR_CHR1
                 With .LastRow
-                    GetResumeTicket = GetResumeTicket & .RowType & CHR1 & .PluNo & CHR1 & .PluName & CHR1 & _
-                        .PluPrice & CHR1 & .PluQuantity & CHR1 & .PluVatGroup & CHR1 & .PrintRowType & CHR1
+                    GetResumeTicket = GetResumeTicket & .RowType & STR_CHR1 & .PluNo & STR_CHR1 & .PluName & STR_CHR1 & _
+                        .PluPrice & STR_CHR1 & .PluQuantity & STR_CHR1 & .PluVatGroup & STR_CHR1 & .PrintRowType & STR_CHR1
                 End With
-                GetResumeTicket = GetResumeTicket & .Paid & CHR1 & .PluCount & CHR1 & -.Finished & CHR1 & -.PmtPrinted & CHR1 & .Row
+                GetResumeTicket = GetResumeTicket & .Paid & STR_CHR1 & .PluCount & STR_CHR1 & -.Finished & STR_CHR1 & -.PmtPrinted & STR_CHR1 & .Row
             End If
         End With
     End Select
@@ -1380,7 +1393,7 @@ Public Function GetTotalsByVatGroups() As Variant
         Next
         GetTotalsByVatGroups = vRetVal
     Else
-        GetTotalsByVatGroups = EmptyVariantArray
+        GetTotalsByVatGroups = Array()
     End If
     Exit Function
 EH:
@@ -1888,6 +1901,9 @@ Private Function pvPrintReceipt(uCtx As UcsContext, uRow() As UcsRowData, ByVal 
             uCtx.PluNo = -.InitPLUNumbering
             '--- get chars per item name
             sResult = SendCommand(ucsEltCmdInfoItem, pvPoke(1, 2))
+            If LenB(m_sLastError) <> 0 Then
+                GoTo QH
+            End If
             uCtx.ItemChars = IIf(Len(sResult) >= 41, 18, 12)
             '--- fix cash payment rate to 1.0
             If GetPaymentRate(1) <> 100 Then
@@ -2512,7 +2528,7 @@ Private Function IDeviceProtocol_Connect() As Boolean
     IDeviceProtocol_Connect = Connect()
 End Function
 
-Private Function IDeviceProtocol_CopyLastReceipt() As Boolean
+Private Function IDeviceProtocol_CopyLastReceipt(Optional ReceiptNumber As String) As Boolean
     IDeviceProtocol_CopyLastReceipt = CopyLastReceipt()
 End Function
 
@@ -2609,8 +2625,8 @@ Private Function IDeviceProtocol_GetTotalsStats() As Variant
     IDeviceProtocol_GetTotalsStats = GetTotalsStats()
 End Function
 
-Private Function IDeviceProtocol_Init(Device As String, Optional ByVal Timeout As Long, Optional ByVal CashDeskNo As Long) As Boolean
-    IDeviceProtocol_Init = Init(Device, Timeout, CashDeskNo)
+Private Function IDeviceProtocol_Init(Device As String, Optional ByVal Timeout As Long, Optional ByVal CashDeskNo As Long, Optional ByVal RowChars As Long) As Boolean
+    IDeviceProtocol_Init = Init(Device, Timeout, CashDeskNo, RowChars)
 End Function
 
 Private Property Get IDeviceProtocol_IsConnected() As Boolean
@@ -2641,6 +2657,6 @@ Private Sub IDeviceProtocol_SetLocalizedText(ByVal Index As UcsFiscalLocalizedIn
     LocalizedText(Index) = Text
 End Sub
 
-Private Function IDeviceProtocol_StartReceipt(ByVal ReceiptType As UcsFiscalReceiptTypeEnum, OperatorCode As String, OperatorName As String, OperatorPassword As String, Optional InvNumber As String, Optional InvTaxNumber As String, Optional InvVatNumber As String, Optional InvCompany As String, Optional InvCity As String, Optional InvAddress As String, Optional InvMol As String, Optional InvReceiver As String) As Boolean
-    IDeviceProtocol_StartReceipt = StartReceipt(ReceiptType, False, OperatorName, InvNumber, InvTaxNumber, InvVatNumber, InvCompany, InvCity, InvAddress, InvMol, InvReceiver)
+Private Function IDeviceProtocol_StartReceipt(ByVal ReceiptType As UcsFiscalReceiptTypeEnum, OperatorCode As String, OperatorName As String, OperatorPassword As String, Optional TableNo As String, Optional InvNumber As String, Optional InvTaxNumber As String, Optional InvVatNumber As String, Optional InvCompany As String, Optional InvCity As String, Optional InvAddress As String, Optional InvMol As String, Optional InvReceiver As String, Optional OwnData As String) As Boolean
+    IDeviceProtocol_StartReceipt = StartReceipt(ReceiptType, False, OperatorName, InvNumber, InvTaxNumber, InvVatNumber, InvCompany, InvCity, InvAddress, InvMol, OwnData)
 End Function
